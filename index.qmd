@@ -1,0 +1,23 @@
+---
+title: "About"
+---
+
+This website contains worked data manipulation and analysis of the daily activity patterns of butterflies using iNaturalist data.
+
+It is written by Florida Museum of Natural History PhD student [Jacob Idec](https://github.com/jidec) and advisor Rob Guralnick.
+
+## Intro
+
+Animals are expected to optimize the times that they are active to maximize their fitness in the face of constraints of light availability, temperature, competition, and predation pressure. It is difficult to impossible to obtain data on activity regimes with spatial, temporal, and taxonomic breath. This project grapples with the distinctive biases of iNaturalist data to explore patterns and trade-offs of activity in butterflies.
+
+## Questions
+
+1.  Do butterflies species have different activity regimes/niches and if so what are they?
+2.  When daylength is longer and temperature is hotter, do butterflies start their activity earlier in the day and end it later?
+3.  Do smaller species have different activity regimes than larger species? We might expect smaller species to forage less in the middle of the day because they are less able to dissipate heat.
+4.  Do species with a preference for open unshaded enviroments have different regimes?
+
+```{r}
+
+
+```

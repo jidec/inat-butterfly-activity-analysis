@@ -1,0 +1,13 @@
+---
+title: "Descriptive"
+---
+
+## How are individuals spatially distributed?
+
+```{r}
+#sscs$latitude <- sscs$lat 
+#sscs$longitude <- sscs$lon 
+#plotLatLonHeatmap(sscs)
+```
+
+Actually not that bad

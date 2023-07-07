@@ -1,0 +1,65 @@
+---
+title: "Data Prep"
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+Load **colorEvoHelpers**, a package containing personal helpers, and **inatDailyActivity**
+
+```{r}
+
+#install_github...
+library(colorEvoHelpers)
+library(inatDailyActivity)
+library(dplyr)
+
+```
+
+Download Daymet data
+
+```{r}
+
+downloadDaymet(cellsize_km=250,download_path="D:/GitProjects/inat-daily-activity-analysis/data")
+
+```
+
+Create SSC (species-subseason-cell) data
+
+```{r}
+
+sscs_8s_rmbf_250km_30nobs <- createSSCsFromRawData(taxon_obs_loc="D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_butterflies_inat_gbif.csv",
+                                                   baseline_obs_loc="D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_insects_inat_gbif.csv",
+                                                   season_intervals_per_year=8,rm_bfs_from_bl=TRUE,
+                                                   ssc_cellsize_km=250, ssc_n_obs_threshold=30,
+                                                   diff_metric_nbins=8,start_hr_trim=1,end_hr_trim = 1,
+                                                   merge_leptraits=TRUE, add_weib_metrics = FALSE)
+```
+
+Weibull metrics take the longest to add, so do that separately and track progress
+
+```{r}
+
+sscs_8s_rmbf_250km_30nobs <- addWeibullMetricsToSSCs(sscs_8s_rmbf_250km_30nobs)
+```
+
+Summarize to species for analysis across the phylogeny
+
+```{r}
+
+sscs_sp <- sscs %>%
+    group_by(species) %>%
+    dplyr::summarise(q5=mean(q5,na.rm=T),q50=mean(q50,na.rm=T),q95=mean(q95,na.rm=T),
+                     diff1=mean(diff_third1_mean,na.rm=T),
+                     diff2=mean(diff_third2_mean,na.rm=T),
+                     diff3=mean(diff_third3_mean,na.rm=T),
+                     pc1=mean(pc1,na.rm=T),pc2=mean(pc2,na.rm=T),
+                     freq_pc1=mean(freq_pc1,na.rm=T),freq_pc2=mean(freq_pc2,na.rm=T),
+                     freq_pc3=mean(freq_pc3,na.rm=T),freq_pc4=mean(freq_pc4,na.rm=T),
+                     freq_pc5=mean(freq_pc5,na.rm=T),
+                     shp_pc1 = mean(shp_pc1,na.rm=T),shp_pc2 = mean(shp_pc2,na.rm=T),
+                     wingspan=mean(wingspan,na.rm=T), mean_n_obs=mean(obs_n,na.rm=T), n_cells=n())
+
+```
