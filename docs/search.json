@@ -12,5 +12,26 @@
     "title": "Descriptive",
     "section": "",
     "text": "#sscs$latitude &lt;- sscs$lat \n#sscs$longitude &lt;- sscs$lon \n#plotLatLonHeatmap(sscs)\n\nActually not that bad"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "About",
+    "section": "",
+    "text": "This website contains worked data manipulation and analysis of the daily activity patterns of butterflies using iNaturalist data.\nIt is written by Florida Museum of Natural History PhD student Jacob Idec and advisor Rob Guralnick."
+  },
+  {
+    "objectID": "index.html#intro",
+    "href": "index.html#intro",
+    "title": "About",
+    "section": "Intro",
+    "text": "Intro\nAnimals are expected to optimize the times that they are active to maximize their fitness in the face of constraints of light availability, temperature, competition, and predation pressure. It is difficult to impossible to obtain data on activity regimes with spatial, temporal, and taxonomic breath. This project grapples with the distinctive biases of iNaturalist data to explore patterns and trade-offs of activity in butterflies."
+  },
+  {
+    "objectID": "index.html#questions",
+    "href": "index.html#questions",
+    "title": "About",
+    "section": "Questions",
+    "text": "Questions\n\nDo butterflies species have different activity regimes/niches and if so what are they?\nWhen daylength is longer and temperature is hotter, do butterflies start their activity earlier in the day and end it later?\nDo smaller species have different activity regimes than larger species? We might expect smaller species to forage less in the middle of the day because they are less able to dissipate heat.\nDo species with a preference for open unshaded enviroments have different regimes?"
   }
 ]
