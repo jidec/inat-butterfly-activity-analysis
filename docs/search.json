@@ -32,13 +32,13 @@
     "href": "descriptive.html",
     "title": "Descriptive",
     "section": "",
-    "text": "#sscs$latitude &lt;- sscs$lat \n#sscs$longitude &lt;- sscs$lon \n#plotLatLonHeatmap(sscs)\n\nActually not that bad"
+    "text": "#sscs$latitude &lt;- sscs$lat \n#sscs$longitude &lt;- sscs$lon \n#plotLatLonHeatmap(sscs)\n\nhist(1:10)\n\n\n\n\nActually not that bad"
   },
   {
     "objectID": "descriptive.html#how-are-individuals-spatially-distributed",
     "href": "descriptive.html#how-are-individuals-spatially-distributed",
     "title": "Descriptive",
     "section": "",
-    "text": "#sscs$latitude &lt;- sscs$lat \n#sscs$longitude &lt;- sscs$lon \n#plotLatLonHeatmap(sscs)\n\nActually not that bad"
+    "text": "#sscs$latitude &lt;- sscs$lat \n#sscs$longitude &lt;- sscs$lon \n#plotLatLonHeatmap(sscs)\n\nhist(1:10)\n\n\n\n\nActually not that bad"
   }
 ]

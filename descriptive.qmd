@@ -5,9 +5,12 @@ title: "Descriptive"
 ## How are individuals spatially distributed?
 
 ```{r}
+
 #sscs$latitude <- sscs$lat 
 #sscs$longitude <- sscs$lon 
 #plotLatLonHeatmap(sscs)
+
+hist(1:10)
 ```
 
 Actually not that bad
