@@ -1,0 +1,93 @@
+---
+title: "Extra: Bimodality"
+---
+
+This is a shot at visualizing and quantitatively assessing relative bimodality of activity curves.
+
+First make new SSCs keeping track of individual observations.
+
+```{r}
+
+library(dplyr)
+library(colorEvoHelpers)
+library(ggplot2)
+
+obs_data <- readRDS("_targets/objects/obs_gridded")
+
+obs_data$geometry <- obs_data$cell
+
+sscs <- obs_data %>%
+  group_by(species, season, year, cell) %>%
+  filter(n() >= 30) %>%
+  summarize(
+    cell = Mode(cell),
+    n_obs = n(), 
+    obs=list(local_hour), # NEW NEW NEW MIGHT BREAK
+    unadj_median = median(local_hour)
+  )
+
+```
+
+Look at some individual SSCs for different species - the first two appear strongly unimodal, but the 3rd and 4th species appear to suggest some bimodality.
+
+```{r}
+
+getObsFromSSCs <- function(sscs, my_species, my_season, my_year, my_cell, plot=TRUE){
+  ssc <- dplyr::filter(sscs,species==my_species,season==my_season,year==my_year,cell==my_cell)
+  obs <- as.data.frame(unlist(ssc$obs))
+  colnames(obs) <- c("hour")
+  obs$year <- my_year
+  obs$unadj_median <- ssc$unadj_median
+  
+  if(plot){
+    p <- ggplot(obs, aes(x = hour)) + 
+      #geom_histogram(aes(y = ..density..), binwidth = 0.5, fill = "skyblue", color = "black") +
+    geom_density(alpha = 0.2, fill = "blue") +
+    geom_point(aes(x = unadj_median, y = 0), color = "red", size = 4) +
+    #geom_point(aes(x = median_value, y = 0), color = "blue", size = 4) +
+    ggtitle(my_species) +
+    xlab("Values") + 
+    ylab("Frequency") +
+    theme_minimal()
+    
+    plot(p)
+  }
+  return(obs)
+}
+
+c_palla <- getObsFromSSCs(sscs, "Chlosyne palla", 2, 2021, 132)
+
+a_nicippe <- getObsFromSSCs(sscs, "Abaeis nicippe", 1, 2021, 64)
+
+a_jatrophae <- getObsFromSSCs(sscs, "Anartia jatrophae", 1, 2022, 20)
+
+p_vibex <- getObsFromSSCs(sscs, "Polites vibex", 4, 2022, 12)
+
+```
+
+See if the dip test corresponds to these visible differences - in the dip test, a low p-value (typically \< 0.05) suggests that the null hypothesis of unimodality can be rejected, indicating the presence of multimodality in the distribution of your data.
+
+```{r}
+
+library(diptest)
+
+# Perform the dip test
+dip(c_palla$hour)
+dip(a_nicippe$hour)
+dip(p_vibex$hour)
+dip(a_jatrophae$hour)
+
+
+
+```
+
+We can then bind these dip values into every SSC - could this be a reasonable bimodality metric?
+
+```{r}
+
+sscs <- sscs %>% mutate(unimod_p=dip(unlist(obs)))
+
+ggplot(sscs, aes(x = unimod_p)) + 
+  geom_density(alpha = 0.2, fill = "blue")
+
+```

@@ -6,11 +6,11 @@
 # Load packages required to define the pipeline:
 library(targets)
 
-# library(tarchetypes) # Load other packages as needed.
+library(tarchetypes) # Load other packages as needed.
 
 # Set target options:
 tar_option_set(
-  packages = c("tibble","readr","colorEvoHelpers","inatDailyActivity") # packages that your targets need to run
+  packages = c("tibble","readr","colorEvoHelpers","inatDailyActivity","dplyr") # packages that your targets need to run
   # format = "qs", # Optionally set the default storage format. qs is fast.
   #
   # For distributed computing in tar_make(), supply a {crew} controller
@@ -50,20 +50,58 @@ tar_source()
 
 # Replace the target list below with your own:
 list(
-  tar_target(observations_file, "D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_butterflies_inat_gbif.csv", format="file"),
-  tar_target(baseline_obs_file, "D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_insects_inat_gbif.csv", format="file"),
+  # load observations
+  tar_target(obs_file, "data/usa_butterflies_inat_gbif.txt", format="file"),
+  tar_target(obs_data, readr::read_csv(obs_file)), # may have to change this
+  #tar_target(obs_data, bindiNatGBIFAnnotations(read_delim(obs_file, delim = "\t", escape_double = FALSE, trim_ws = TRUE),
+  #                                             "lifeStage", 
+  #                                             "D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_butterflies_inat_gbif_dwc.zip")),
   
-  tar_target(observations_df, {read_delim(observations_file, delim = "\t", escape_double = FALSE, trim_ws = TRUE)}),
-  tar_target(baseline_obs_df, {read_delim(baseline_obs_file, delim = "\t", escape_double = FALSE, trim_ws = TRUE)}),
+  # add longitude and datetime cols, filter for 2016 onward and in contiguous USA only
+  tar_target(obs_fixed, filterContiguousUSA(obs_data %>% mutate(latitude=decimalLatitude,longitude=decimalLongitude,datetime=eventDate)
+                                            %>% filter(year >= 2016) 
+                                            %>% filter(lifeStage != "Larva")
+                                            %>% filter(species != "Danaus plexippus"))),
   
-  tar_target(daymet_downloaded,downloadDaymet(cellsize_km=250, download_path="D:/GitProjects/inat-daily-activity-analysis/data",return=T)),
-  tar_target(daymet_data, prepDaymetData(daymet_downloaded, season_intervals_per_year = 4)),
+  # bind solar hour and season interval
+  tar_target(obs_timed, bindSolarTime(bindSeasonIntervals(obs_fixed,season_intervals_per_year = 4))),
   
-  tar_target(sscs, createSSCsFromRawData(taxon_obs=observations_df, 
-                                         baseline_obs=baseline_obs_df,
-                                         daymet_downloaded = daymet_downloaded,
-                                         season_intervals_per_year=8,rm_bfs_from_bl=TRUE,
-                                         ssc_cellsize_km=250, ssc_n_obs_threshold=30,
-                                         diff_metric_nbins=8,start_hr_trim=1,end_hr_trim = 1,
-                                         merge_leptraits=TRUE, add_weib_metrics = FALSE))
+  # grid it up
+  tar_target(obs_gridded, bindGridCells(obs_timed,cellsize_km=250)),
+  
+  # species-season-cells
+  #tar_target(sscs, createSSCs(obs_data_gridded, approach="species_season_cell", min_per_ssc=30)),
+  # bind climate data
+  #tar_target(sscs_climate, bindPrismData(sscs)),
+  # bind leptraits
+  #tar_target(sscs_final, mergeLeptraitsToSSCs(sscs_climate)),
+  
+  # species-season-YEAR-cell8
+  tar_target(sscs2_initial, createSSCs(obs_gridded, approach="species_season_year_cell", min_per_ssc=30,earliest_hr=6,latest_hr=21)), #earliest=8
+  
+  # bind climate data
+  tar_target(sscs2_climate, bindPrismData(sscs2_initial,prism_dir="D:/GitProjects/inat-daily-activity-analysis/data/prism")),
+  
+  # bind leptraits
+  tar_target(sscs2_traits, mergeLeptraitsToSSCs(sscs2_climate)),
+  
+  # add lat and lon columns 
+  tar_target(sscs2_latlon, sscs2_traits %>% mutate(lat=cell_lat,lon=cell_lon)),
+  
+  # bind daylength
+  tar_target(sscs2_daylength, bindDaylength(sscs2_traits %>% mutate(latitude=cell_lat,longitude=cell_lon))),
+  
+  # scale and finish
+  tar_target(sscs2, sscs2_daylength %>% mutate(wingspan_sc=scale(wingspan),temp_sc=scale(value),daylength_sc=scale(daylength)))
+  
+  # DAYMET APPROACH
+  # download Daymet data at the locations of the grid cells 
+  #tar_target(daymet_downloaded,downloadDaymet(obs_data_gridded, download_path="D:/GitProjects/inat-daily-activity-analysis/data",return=T)),#,skip=F),
+  # reshape and add season intervals to Daymet data
+  #tar_target(daymet_data, prepDaymet(daymet_downloaded, season_intervals_per_year = 4)),
+  # summarize Daymet to season cells 
+  #tar_target(daymet_summarized, daymet_data %>% group_by(season,cell) %>% summarise(tmax_mean = mean(tmax),dl_mean=mean(daylength))),
+  # merge on Daymet
+  # tar_target(obs_data_daymet, merge(obs_data_gridded,daymet_data, by=c("cell","season"), all.x=TRUE)),
+  # tar_target(sscs_climate, merge(sscs,daymet_summarized, by=c("cell","season"),all.x=TRUE)),
 )

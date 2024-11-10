@@ -1,0 +1,437 @@
+---
+title: "results"
+execute:
+  eval: false
+---
+
+Below are linear mixed model results based on our initial hypotheses around body size, thermoregulation, and daylength
+
+Load data, bypassing the last steps of \_targets currently
+
+```{r}
+library(ggplot2)
+library(inatDailyActivity)
+library(lme4)
+library(splines)
+library(sjPlot)
+library(performance)
+library(dplyr)
+
+sscs <- readRDS("_targets/objects/sscs")
+
+daymet_data <- readRDS("_targets/objects/daymet_data")
+
+daymet_data <- daymet_data %>% group_by(season,cell) %>% summarise(tmax = mean(tmax),daylength=mean(daylength))
+
+sscs$cell <- as.factor(sscs$cell)
+sscs$season <- as.factor(sscs$season)
+daymet_data$cell <- as.factor(daymet_data$cell)
+daymet_data$season <- as.factor(daymet_data$season)
+
+sscs <- left_join(sscs, daymet_data, by = c("cell", "season"))
+sscs <- mergeLeptraitsToSSCs(sscs)
+
+
+sscs$midday_dist <- abs(sscs$median_value - 14)
+sscs$duration <- sscs$q90_value - sscs$q10_value
+
+sscs <- readRDS("_targets/objects/sscs_final")
+
+sscs_scaled <- sscs %>% mutate(wingspan=scale(wingspan),tmax=scale(tmax),daylength=scale(daylength))
+```
+
+Final models and plotting
+
+```{r}
+
+library(car)
+
+sscs_scaled <- sscs %>% mutate(wingspan=scale(wingspan),tmax=scale(tmax),daylength=scale(daylength))
+
+m <- lmer(median_value ~ ns(tmax,2) + wingspan + open_closed + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+vif(m)
+r2_nakagawa(m)
+
+m <- lmer(q10_value ~ ns(tmax,2) + wingspan + open_closed + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+
+m <- lmer(q90_value ~ ns(tmax,2) + wingspan + open_closed + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+
+m <- lmer(duration ~ ns(tmax,2) + wingspan + open_closed + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+plot_model(m, type="eff", terms="daylength")
+
+#AIC goes down with interaction effect
+```
+
+Look at just summers and lat
+
+```{r}
+
+#obs_data_gridded <- readRDS("_targets/objects/obs_data_gridded")
+#cells <- obs_data_gridded %>% select(-geometry) %>% distinct(cell, .keep_all=TRUE) %>% select(cell_lat,cell_lon,cell) %>% mutate(cell = as.factor(cell))
+
+summer_sscs <- filter(sscs, season == 3)
+#summer_sscs <- left_join(summer_sscs, cells, by="cell")
+summer_sscs_scaled <- summer_sscs %>% mutate(tmax = scale(tmax),daylength=scale(daylength))
+
+m <- lmer(q10_value ~ ns(tmax,2) * daylength + wingspan + (1|species),data=summer_sscs_scaled)
+plot_model(m)
+vif(m)
+
+m <- lmer(median_value ~ ns(tmax,2) * daylength + wingspan + (1|species),data=summer_sscs_scaled)
+plot_model(m)
+vif(m)
+
+m <- lmer(q90_value ~ ns(tmax,2) * daylength + wingspan + (1|species),data=summer_sscs_scaled)
+plot_model(m)
+vif(m)
+
+m <- lmer(duration ~ ns(tmax,2) * daylength + wingspan + (1|species),data=summer_sscs_scaled)
+plot_model(m)
+vif(m)
+plot_model(m,type="eff",terms="tmax")
+plot_model(m,type="eff",terms="daylength")
+```
+
+Basically, while duration increases with daylength in all seasons, in summer duration actually decreases - maybe because of the narrow range of daylength differences?
+
+```{summary(m)}
+r2_nakagawa(m)
+plot_model(m, terms="tmax",type="eff")
+
+m <- lmer(q10_value ~ tmax + (1|species),data=summer_sscs)
+plot_model(m)
+summary(m)
+r2_nakagawa(m)
+plot_model(m, terms="tmax",type="eff")
+
+m <- lmer(q90_value ~ tmax + (1|species),data=summer_sscs)
+plot_model(m)
+summary(m)
+r2_nakagawa(m)
+plot_model(m, terms="tmax",type="eff")
+
+ggplot(summer_sscs, aes(x=tmax)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Density Plot of Continuous Variable",
+       x = "Value",
+       y = "Density")
+```
+
+Recode snip
+
+```{r}
+
+sscs <- sscs %>% mutate(season = recode(season, 
+                                        '1' = 'Winter',
+                                        '2' = 'Spring',
+                                        '3' = 'Summer',
+                                        '4' = 'Fall'))
+```
+
+Steps to arrive at these (diagnostics etc.)
+
+```{r}
+
+library(car)
+
+model <- lmer(median_value ~ ns(tmax,2) * wingspan + (1|species), data = sscs)
+summary(model)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+vif(model)
+
+model <- lmer(duration ~ tmax wingspan + (1|species), data = sscs)
+summary(model)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+
+
+
+model <- lmer(duration ~ tmax + wingspan + (1|species), data = sscs)
+summary(model)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+
+```
+
+```{r}
+library(ggplot2)
+
+View(sscs)
+
+# Create a data frame
+data <- data.frame(hours = sscs$obs[[4]])
+
+# Create a density plot
+ggplot(data, aes(x = hours)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  labs(title = "Butterfly Observations Across the Day", x = "Hour of the Day", y = "Density") + 
+    scale_x_continuous(breaks = seq(0, 23, by = 1), labels = seq(0, 23, by = 1))
+
+```
+
+```{r}
+
+# might just take more heat to warm up a large butterfly to the point they hit their peak activity 
+# look into the lit about large butterfly thermregulation 
+
+ggplot(sscs, aes(x = season, y = median_value)) +
+  geom_boxplot(outlier.shape = NA) +
+  labs(title = "Hour of Median Activity Across Seasons", y = "Hour of the Day", x = "Season") +
+  scale_y_continuous(breaks = c(10, 12, 14, 16, 18),
+                     labels = c("10 AM", "12 PM", "2 PM", "4 PM", "6 PM"),
+                     limits = c(10, 18)) +
+  #ylim(10,18) +
+  geom_hline(yintercept = 12, color = "red", linetype = "dashed") +
+  theme_minimal()
+
+```
+
+```{r}
+
+plot(sscs$tmax, sscs$median_value)
+```
+
+```{r}
+
+# Plotting the data
+ggplot(sscs, aes(x=tmax, y=median_value)) +
+  geom_point() +                    # scatter plot
+  geom_smooth(method='loess', span = 0.75) +       # linear regression line
+  labs(
+    title = "Scatterplot of Value vs tmaxerature",
+    x = "tmaxerature (°C)",
+    y = "Value"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+
+# Plotting the data
+ggplot(sscs, aes(x=wingspan, y=median_value)) +
+  geom_point() +                    # scatter plot
+  geom_smooth(method='lm') +       # linear regression line
+  labs(
+    title = "Scatterplot of Value vs Wingspan",
+    x = "Wingspan",
+    y = "Value"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+
+sscs_sp <- sscs %>%
+  group_by(species) %>%
+  tally(sort = TRUE) %>%
+  top_n(20, n) %>%
+  inner_join(sscs, by = "species")
+
+ggplot(sscs_sp, aes(x = species, y = median_hr_bs)) +
+  geom_boxplot(outlier.shape = NA) +
+  coord_flip() + 
+  labs(title = "Hour of Median Activity Across Seasons", y = "Hour of the Day", x = "Season") +
+  scale_y_continuous(breaks = c(10, 12, 14, 16, 18),
+                     labels = c("10 AM", "12 PM", "2 PM", "4 PM", "6 PM"),
+                     limits = c(10, 18)) +
+  #ylim(10,18) +
+  geom_hline(yintercept = 12, color = "red", linetype = "dashed") +
+  theme_minimal()
+```
+
+New interaction model
+
+```{r}
+library(lme4)
+library(splines)
+library(sjPlot)
+library(car)
+library(performance)
+
+sscs_scaled <- sscs
+sscs_scaled$tmax <- scale(sscs$tmax)
+sscs_scaled$wingspan <- scale(sscs$wingspan)
+
+#ns(tmax,2)
+model <- lmer(median_value ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+vif(model)
+AIC(model)
+summary(model)
+library(effects)
+plot(allEffects(model),rows=1)
+m1 <- model
+
+
+model <- lmer(q10_value ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+vif(model)
+AIC(model)
+summary(model)
+library(effects)
+plot(allEffects(model),rows=1)
+m2 <- model
+
+model <- lmer(q90_value ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+vif(model)
+AIC(model)
+summary(model)
+library(effects)
+plot(allEffects(model),rows=1)
+m3 <- model
+
+
+model <- lmer(duration ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+plot_model(model)
+plot_model(model,type="eff",terms="wingspan")
+plot_model(model,type="eff",terms="tmax")
+plot_model(model, type = "re")
+r2_nakagawa(model)
+vif(model)
+AIC(model)
+summary(model)
+library(effects)
+plot(allEffects(model),rows=1)
+m4 <- model
+```
+
+Checking diff combos
+
+```{r}
+
+print("Spline, Interaction")
+model <- lmer(median_value ~ ns(tmax,2) * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, Interaction")
+model <- lmer(median_value ~ tmax * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("Spline, No Interaction")
+model <- lmer(median_value ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, No Interaction")
+model <- lmer(median_value ~ tmax + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+```
+
+```{r}
+
+print("Spline, Interaction")
+model <- lmer(q10_value ~ ns(tmax,2) * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, Interaction")
+model <- lmer(q10_value  ~ tmax * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("Spline, No Interaction")
+model <- lmer(q10_value ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, No Interaction")
+model <- lmer(q10_value ~ tmax + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+```
+
+```{r}
+
+print("Spline, Interaction")
+model <- lmer(q90_value ~ ns(tmax,2) * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, Interaction")
+model <- lmer(q90_value ~ tmax * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("Spline, No Interaction")
+model <- lmer(q90_value ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, No Interaction")
+model <- lmer(q90_value ~ tmax + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+```
+
+```{r}
+
+print("Spline, Interaction")
+model <- lmer(midday_dist ~ ns(tmax,2) * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, Interaction")
+model <- lmer(midday_dist ~ tmax * wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("Spline, No Interaction")
+model <- lmer(midday_dist ~ ns(tmax,2) + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+
+print("No Spline, No Interaction")
+model <- lmer(midday_dist ~ tmax + wingspan + (1|species), data = sscs_scaled)
+r2_nakagawa(model)
+AIC(model)
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+model <- lmer(median_value ~ ns(tmax,2) * season + wingspan + (1|species), data = sscs_scaled)
+plot_model(model)
+plot_model(model,type="eff",terms=c("tmax","season"))
+vif(model)
+```

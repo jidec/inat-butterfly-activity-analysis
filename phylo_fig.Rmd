@@ -1,0 +1,21 @@
+---
+title: "R Notebook"
+output: html_notebook
+execute:
+  eval: false
+---
+
+```{r}
+#sscs_scaled$clade <- sscs_scaled$species
+#sscs$duration <- sscs$q90_value - sscs$q10_value
+sscs_sp <- sscs %>% group_by(species) %>% summarize(duration=mean(duration),median=mean(median_value),
+                                                onset=mean(q10_value),offset=mean(q90_value),n=n()) %>% filter(n > 15)
+colnames(sscs_sp)[1] <- "clade"
+assessTraitsOnTree(sscs_sp, trait_colname = "duration",tree_location = "data/raw/bf_species_tree.txt",remove_first_split=T)
+
+assessTraitsOnTree(sscs_sp, trait_colname = "onset",tree_location = "data/raw/bf_species_tree.txt",remove_first_split=T)
+
+assessTraitsOnTree(sscs_sp, trait_colname = "median",tree_location = "data/raw/bf_species_tree.txt",remove_first_split=T)
+assessTraitsOnTree(sscs_sp, trait_colname = "offset",tree_location = "data/raw/bf_species_tree.txt",remove_first_split=T)
+
+```

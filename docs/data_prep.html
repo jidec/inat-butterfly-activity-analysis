@@ -117,7 +117,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
     <a class="nav-link" href="./index.html" rel="" target="">
- <span class="menu-text">Intro</span></a>
+ <span class="menu-text">About</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link active" href="./data_prep.html" rel="" target="" aria-current="page">
@@ -161,44 +161,39 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </header>
 
-<p>Load <strong>colorEvoHelpers</strong>, a package containing personal helpers, and <strong>inatDailyActivity</strong></p>
+<p>Load packages including <strong>colorEvoHelpers</strong>, a package containing personal helpers, and <strong>inatDailyActivity</strong> containing the bias-adjustment pipeline</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#install_github...</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(colorEvoHelpers)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(inatDailyActivity)</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tibble)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Download Daymet data</p>
+<p>Load in iNat observations data downloaded from GBIF</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">downloadDaymet</span>(<span class="at">cellsize_km=</span><span class="dv">250</span>,<span class="at">download_path=</span><span class="st">"D:/GitProjects/inat-daily-activity-analysis/data"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>obs_data <span class="ot">&lt;-</span> <span class="fu">read_delim</span>(<span class="st">"data/raw/inat/usa_butterflies_inat_gbif.csv"</span>, <span class="at">delim =</span> <span class="st">"</span><span class="sc">\t</span><span class="st">"</span>, <span class="at">escape_double =</span> <span class="cn">FALSE</span>, <span class="at">trim_ws =</span> <span class="cn">TRUE</span>) <span class="co"># change this to dwc csv format </span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Create SSC (species-subseason-cell) data</p>
+<p>Add solar hour and season bin columns</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>sscs_8s_rmbf_250km_30nobs <span class="ot">&lt;-</span> <span class="fu">createSSCsFromRawData</span>(<span class="at">taxon_obs_loc=</span><span class="st">"D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_butterflies_inat_gbif.csv"</span>,</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>                                                   <span class="at">baseline_obs_loc=</span><span class="st">"D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_insects_inat_gbif.csv"</span>,</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>                                                   <span class="at">season_intervals_per_year=</span><span class="dv">8</span>,<span class="at">rm_bfs_from_bl=</span><span class="cn">TRUE</span>,</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>                                                   <span class="at">ssc_cellsize_km=</span><span class="dv">250</span>, <span class="at">ssc_n_obs_threshold=</span><span class="dv">30</span>,</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>                                                   <span class="at">diff_metric_nbins=</span><span class="dv">8</span>,<span class="at">start_hr_trim=</span><span class="dv">1</span>,<span class="at">end_hr_trim =</span> <span class="dv">1</span>,</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>                                                   <span class="at">merge_leptraits=</span><span class="cn">TRUE</span>, <span class="at">add_weib_metrics =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>obs_data_ss <span class="ot">&lt;-</span> <span class="fu">datetimeToSolarAndSeason</span>(obs_data,<span class="at">season_intervals_per_year =</span> <span class="dv">4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Weibull metrics take the longest to add, so do that separately and track progress</p>
+<p>Grid up the data</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>sscs_8s_rmbf_250km_30nobs <span class="ot">&lt;-</span> <span class="fu">addWeibullMetricsToSSCs</span>(sscs_8s_rmbf_250km_30nobs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>obs_data_gridded <span class="ot">&lt;-</span> <span class="fu">gridUpDf</span>(obs_data_ss,<span class="at">cellsize_km=</span><span class="dv">250</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Summarize to species for analysis across the phylogeny</p>
+<p>Create the SSCs</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>sscs_sp <span class="ot">&lt;-</span> sscs <span class="sc">%&gt;%</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(species) <span class="sc">%&gt;%</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">summarise</span>(<span class="at">q5=</span><span class="fu">mean</span>(q5,<span class="at">na.rm=</span>T),<span class="at">q50=</span><span class="fu">mean</span>(q50,<span class="at">na.rm=</span>T),<span class="at">q95=</span><span class="fu">mean</span>(q95,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>                     <span class="at">diff1=</span><span class="fu">mean</span>(diff_third1_mean,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>                     <span class="at">diff2=</span><span class="fu">mean</span>(diff_third2_mean,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>                     <span class="at">diff3=</span><span class="fu">mean</span>(diff_third3_mean,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>                     <span class="at">pc1=</span><span class="fu">mean</span>(pc1,<span class="at">na.rm=</span>T),<span class="at">pc2=</span><span class="fu">mean</span>(pc2,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>                     <span class="at">freq_pc1=</span><span class="fu">mean</span>(freq_pc1,<span class="at">na.rm=</span>T),<span class="at">freq_pc2=</span><span class="fu">mean</span>(freq_pc2,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>                     <span class="at">freq_pc3=</span><span class="fu">mean</span>(freq_pc3,<span class="at">na.rm=</span>T),<span class="at">freq_pc4=</span><span class="fu">mean</span>(freq_pc4,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>                     <span class="at">freq_pc5=</span><span class="fu">mean</span>(freq_pc5,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>                     <span class="at">shp_pc1 =</span> <span class="fu">mean</span>(shp_pc1,<span class="at">na.rm=</span>T),<span class="at">shp_pc2 =</span> <span class="fu">mean</span>(shp_pc2,<span class="at">na.rm=</span>T),</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>                     <span class="at">wingspan=</span><span class="fu">mean</span>(wingspan,<span class="at">na.rm=</span>T), <span class="at">mean_n_obs=</span><span class="fu">mean</span>(obs_n,<span class="at">na.rm=</span>T), <span class="at">n_cells=</span><span class="fu">n</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>sscs <span class="ot">&lt;-</span> <span class="fu">createSSCs</span>(obs_data_gridded, <span class="at">approach=</span><span class="st">"species_season_year_cell"</span>, <span class="at">min_per_ssc=</span><span class="dv">30</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Bind climate data</p>
+<p>IMPORTANT - this step requires first downloading PRISM climate data using the prism package for all the years and seasons contained in your data, including setting the prism download directory</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>sscs_climate <span class="ot">&lt;-</span> <span class="fu">bindPrismData</span>(sscs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Merge LepTraits (cite) into SSCs</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>sscs_final <span class="ot">&lt;-</span> <span class="fu">mergeLeptraitsToSSCs</span>(sscs_climate)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 
 

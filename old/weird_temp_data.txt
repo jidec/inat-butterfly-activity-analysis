@@ -1,0 +1,254 @@
+---
+title: "investigating weird temp data"
+---
+
+```{r}
+
+hist(sscs$tile, breaks =200)
+table(sscs$tile)
+
+```
+
+Every daymet tile is 12271
+
+```{r}
+
+sscs
+```
+
+Below might be wrong as well - try redownloading
+
+```{r}
+
+daymet_data <- readRDS("_targets/objects/daymet_data")
+
+hist(daymet_data$latitude,breaks=200)
+
+plot(daymet_data$latitude, daymet_data$longitude)
+
+length(unique(daymet_data$tile))
+
+#library(colorEvoHelpers)
+
+#colorEvoHelpers::plotLatLonHeatmap(daymet_data)
+```
+
+Almost all obs are from the same daymet tile - this is wrong
+
+```{r}
+
+#obs_data_tiled <- readRDS("_targets/objects/obs_data_tiled")
+
+table(obs_data_tiled$daymet_tile)
+```
+
+```{r}
+
+
+# lats and longs of obs are right
+
+hist(obs_data_gridded$decimalLatitude)
+hist(obs_data_gridded$decimalLongitude)
+
+# grid cells look correct
+hist(obs_data_gridded$cell,breaks=200)
+```
+
+The problem is in addClosestDaymetTileIDs(obs_data_gridded,daymet_data)
+
+```{r}
+df <- obs_data_gridded
+  
+ t <- 0.003 * nrow(df)
+  print(paste("estimated max time:", t, "seconds"))
+
+  # add year and day if not already
+  #df$year <- year(df$datetimes)
+  #df$yday <- yday(df$datetimes)
+
+  # create subsets so dist mat doesn't overflow
+  n <- nsubset
+  nr <- nrow(df)
+  subsets <- split(df, rep(1:ceiling(nr/n), each=n, length.out=nr))
+
+  # get unique cells to use for every loop
+  dm_cells <- distinct(daymet_data, tile, .keep_all = TRUE)
+  dm_cells_sf <- st_as_sf(dm_cells,coords = c("latitude", "longitude"))
+  st_crs(dm_cells_sf) <- 4326
+
+  # loop through subsets, getting sf and dist matrix for each
+  for(i in 1:length(subsets)){
+
+    # get subset
+    ss <- subsets[[i]]
+
+    # convert to sf
+    ss_sf <- st_as_sf(ss,coords = c("latitude", "longitude"))
+
+    # get dist matrix of df to all dm_cells
+    dist_matrix <- st_distance(ss_sf, dm_cells_sf)
+
+    # get vector of closest cells and then tilenames
+    close_tiles <- max.col(-1 * dist_matrix)
+    ss$daymet_tile <- dm_cells[close_tiles,]$tile
+
+    # reassign to subset
+    subsets[[i]] <- ss
+  }
+  df <- as.data.frame(do.call(rbind, subsets))
+```
+
+```{r}
+
+colorEvoHelpers::downloadDaymet()
+```
+
+```{r}
+
+library(daymetr)
+    library(dplyr)
+    library(sp)
+
+    # get unique grid cells from the data
+    grid_cells <- gridded_df %>%
+        select(c(cell, cell_lat, cell_lon)) %>%
+        distinct(cell, .keep_all = TRUE)
+
+    # write to .csv to feed into daymet func
+    colnames(grid_cells) <- c("site","latitude","longitude")
+    points <- as.matrix(points)
+    points_path <- paste0(download_path,"/points_for_daymet.csv")
+    write.csv(points, points_path, row.names = FALSE)
+
+    data_path <- paste0(download_path,"/daymet")
+    # make folder
+    dir.create(data_path)
+
+    # download 16500 (max) tiles from these points
+    download_daymet_batch(
+        file_location = points_path,
+        start = 2020,
+        end = 2021,
+        internal = FALSE,
+        path = "data/daymet",
+        simplify = FALSE
+    )
+
+    csv_files <- dir(path= data_path, pattern='*.csv$', recursive = T)
+    csv_files <- paste0(data_path, "/", csv_files)
+
+    daymet_data <- data.frame()
+    for(i in 1:length(csv_files)) {
+        daymet_data <- rbind(daymet_data, read_daymet(csv_files[i]))
+    }
+
+    # season starts
+    #install.packages("lubridate")
+    #library(lubridate)
+    #yday(mdy("12/1/2000"))
+    #yday(mdy("3/1/2000"))
+    #yday(mdy("6/1/2000"))
+    #yday(mdy("9/1/2000"))
+
+    data_file_path <- paste0(data_path, "/daymet.csv")
+    write.csv(daymet_data,data_file_path)
+
+    if(return){
+        return(daymet_data)
+    }
+```
+
+```{r}
+library(colorEvoHelpers)
+
+cellsize_km = 250
+#obs_data_ss <- readRDS("_targets/objects/obs_data_ss")
+df <- obs_data_ss
+#obs_data_gridded$lati
+
+library(sf)
+library(dplyr)
+
+# Convert df to sf object
+sf_data <- st_as_sf(df, coords = c("longitude", "latitude"), crs = 4326)
+
+# Create the grid
+grid <- st_make_grid(sf_data, cellsize = c(cellsize_km * 0.009, cellsize_km * 0.009), square = TRUE) %>%
+  st_sf('ID' = 1:length(.), geometry = .)
+
+# Calculate the center (centroid) of each grid cell
+grid_centers <- st_centroid(grid)
+
+# Add centroids' coordinates to the grid data
+grid_with_centroids <- cbind(grid, st_coordinates(grid_centers))
+
+# Perform spatial join, joining sf_data with the nearest grid cell
+result <- st_join(sf_data, grid, left = TRUE)
+
+# Add the cell column based on the grid ID
+result$cell <- result$ID
+
+# Add the latitude and longitude of grid cell centers to result
+result <- result %>%
+  mutate(
+    cell_lat = grid_with_centroids$Y[result$ID],
+    cell_lon = grid_with_centroids$X[result$ID]
+  )
+
+result <- data.frame(result)
+
+```
+
+```{r}
+
+gridded_df <- result
+download_path <- "data"
+
+library(daymetr)
+library(dplyr)
+library(sp)
+library(stringr)
+
+# get unique grid cells from the data
+grid_cells <- gridded_df %>%
+    select(c(cell, cell_lat, cell_lon)) %>%
+    distinct(cell, .keep_all = TRUE)
+
+# write to .csv to feed into daymet func
+colnames(grid_cells) <- c("site","latitude","longitude")
+grid_cells <- as.matrix(grid_cells)
+grid_cells_path <- paste0(download_path,"/points_for_daymet.csv")
+write.csv(grid_cells, grid_cells_path, row.names = FALSE)
+
+csvs_path <- paste0(download_path,"/daymet")
+# make folder
+dir.create(csvs_path)
+
+# download 16500 (max) tiles from these points
+download_daymet_batch(
+    file_location = grid_cells_path,
+    start = 2020,
+    end = 2021,
+    internal = FALSE,
+    path = "data/daymet",
+    simplify = FALSE
+)
+
+csv_files <- dir(path= csvs_path, pattern='*.csv$', recursive = T)
+csv_files <- paste0(data_path, "/", csv_files)
+
+daymet_data <- data.frame()
+for(i in 1:length(csv_files)) {
+    
+    # get full name of the csv
+    csv_name <- str_split(csv_files[i],"/")[[1]][length(str_split(csv_files[i],"/")[[1]])]
+    cell_id <- str_split(csv_name,"_")[[1]][1] # get the id as the first element of split on _ 
+    
+    new_data <- read_daymet(csv_files[i])
+    new_data$cell <- rep(cell_id, nrow(new_data))
+    daymet_data <- rbind(daymet_data, read_daymet(csv_files[i]))
+}
+
+data_file_path <- paste0(download_path, "/daymet.csv")
+write.csv(daymet_data,data_file_path)
+```

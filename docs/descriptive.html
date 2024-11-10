@@ -117,7 +117,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
     <a class="nav-link" href="./index.html" rel="" target="">
- <span class="menu-text">Intro</span></a>
+ <span class="menu-text">About</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="./data_prep.html" rel="" target="">
@@ -126,6 +126,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li class="nav-item">
     <a class="nav-link active" href="./descriptive.html" rel="" target="" aria-current="page">
  <span class="menu-text">Descriptive</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./bias_adjust_example.html" rel="" target="">
+ <span class="menu-text">Bias Adjust Example</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./model_selection.html" rel="" target="">
+ <span class="menu-text">Model Selection</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./publication_figures.html" rel="" target="">
+ <span class="menu-text">Publication Figures</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./bimodality.html" rel="" target="">
+ <span class="menu-text">Extra: Bimodality</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./observer_timings.html" rel="" target="">
+ <span class="menu-text">Extra: Observer Time Issues</span></a>
   </li>  
 </ul>
             <div class="quarto-navbar-tools ms-auto">
@@ -143,7 +163,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#how-are-individuals-spatially-distributed" id="toc-how-are-individuals-spatially-distributed" class="nav-link active" data-scroll-target="#how-are-individuals-spatially-distributed">How are individuals spatially distributed?</a></li>
+  <li><a href="#how-are-sscs-spatially-distributed" id="toc-how-are-sscs-spatially-distributed" class="nav-link active" data-scroll-target="#how-are-sscs-spatially-distributed">How are SSCs spatially distributed?</a></li>
+  <li><a href="#how-are-species-sampled" id="toc-how-are-species-sampled" class="nav-link" data-scroll-target="#how-are-species-sampled">How are species sampled?</a></li>
+  <li><a href="#how-is-wingspan-distributed" id="toc-how-is-wingspan-distributed" class="nav-link" data-scroll-target="#how-is-wingspan-distributed">How is wingspan distributed?</a></li>
+  <li><a href="#how-is-habitat-preference-distributed" id="toc-how-is-habitat-preference-distributed" class="nav-link" data-scroll-target="#how-is-habitat-preference-distributed">How is habitat preference distributed?</a></li>
+  <li><a href="#what-does-the-overall-curve-look-like" id="toc-what-does-the-overall-curve-look-like" class="nav-link" data-scroll-target="#what-does-the-overall-curve-look-like">What does the overall curve look like?</a></li>
+  <li><a href="#are-effects-only-for-certain-families" id="toc-are-effects-only-for-certain-families" class="nav-link" data-scroll-target="#are-effects-only-for-certain-families">Are effects only for certain families?</a></li>
   </ul>
 </nav>
     </div>
@@ -167,19 +192,202 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </header>
 
-<section id="how-are-individuals-spatially-distributed" class="level2">
-<h2 class="anchored" data-anchor-id="how-are-individuals-spatially-distributed">How are individuals spatially distributed?</h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#sscs$latitude &lt;- sscs$lat </span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#sscs$longitude &lt;- sscs$lon </span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">#plotLatLonHeatmap(sscs)</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(colorEvoHelpers)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: replacing previous import 'dplyr::where' by 'ape::where' when loading
+'colorEvoHelpers'</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(inatDailyActivity)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(stringr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'stringr' was built under R version 4.2.2</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'dplyr' was built under R version 4.2.3</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'dplyr'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    filter, lag</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sscs <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="st">"_targets/objects/sscs2"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="how-are-sscs-spatially-distributed" class="level2">
+<h2 class="anchored" data-anchor-id="how-are-sscs-spatially-distributed">How are SSCs spatially distributed?</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">str_c</span>(<span class="st">"Number of unique cells: "</span>, <span class="fu">length</span>(<span class="fu">unique</span>(sscs<span class="sc">$</span>cell)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Number of unique cells: 131"</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>sscs<span class="sc">$</span>latitude <span class="ot">&lt;-</span> sscs<span class="sc">$</span>cell_lat</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>sscs<span class="sc">$</span>longitude <span class="ot">&lt;-</span> sscs<span class="sc">$</span>cell_lon</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(sscs<span class="sc">$</span>latitude)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
-<p><img src="descriptive_files/figure-html/unnamed-chunk-1-1.png" class="img-fluid" width="672"></p>
+<p><img src="descriptive_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid" width="672"></p>
+</div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(sscs<span class="sc">$</span>longitude)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-3-2.png" class="img-fluid" width="672"></p>
 </div>
 </div>
-<p>Actually not that bad</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plotLatLonHeatmap</span>(sscs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'mapdata' was built under R version 4.2.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'ggplot2' was built under R version 4.2.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: The dot-dot notation (`..density..`) was deprecated in ggplot2 3.4.0.
+ℹ Please use `after_stat(density)` instead.
+ℹ The deprecated feature was likely used in the colorEvoHelpers package.
+  Please report the issue to the authors.</code></pre>
+</div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="how-are-species-sampled" class="level2">
+<h2 class="anchored" data-anchor-id="how-are-species-sampled">How are species sampled?</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">str_c</span>(<span class="st">"Number of unique species: "</span>, <span class="fu">length</span>(<span class="fu">unique</span>(sscs<span class="sc">$</span>species)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Number of unique species: 274"</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># count the number of occurrences of each species</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>species_counts <span class="ot">&lt;-</span> <span class="fu">table</span>(sscs<span class="sc">$</span>species)</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co"># create a bar plot</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="fu">barplot</span>(species_counts, </span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">main =</span> <span class="st">"Distribution of Data by Species"</span>, </span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">xlab =</span> <span class="st">"Species"</span>, </span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">ylab =</span> <span class="st">"Number of Records"</span>, </span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">col =</span> <span class="st">"blue"</span>,</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">las =</span> <span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(<span class="fu">table</span>(sscs<span class="sc">$</span>species),<span class="at">breaks=</span><span class="dv">100</span>,<span class="at">main=</span><span class="st">"Distribution of species having at least X obs"</span>,<span class="at">ylab=</span><span class="st">"# species"</span>,<span class="at">xlab=</span><span class="st">"X Count Threshold"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Count the occurrences of each species and sort</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>species_counts <span class="ot">&lt;-</span> <span class="fu">sort</span>(<span class="fu">table</span>(sscs<span class="sc">$</span>species), <span class="at">decreasing =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose a cutoff, e.g., top 20 species (adjusting your original top_n to match your example)</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>top_n <span class="ot">&lt;-</span> <span class="dv">20</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>top_species_counts <span class="ot">&lt;-</span> <span class="fu">head</span>(species_counts, top_n)</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Sum the rest into the 'Other' category</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>other_count <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">tail</span>(species_counts, <span class="sc">-</span>top_n))</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>top_species_counts <span class="ot">&lt;-</span> <span class="fu">c</span>(top_species_counts, <span class="at">Other =</span> other_count)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a bar plot for the top N species + "Other"</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a><span class="fu">barplot</span>(top_species_counts, </span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">main =</span> <span class="st">"Top Species by Number of SSCs"</span>, </span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>        <span class="at">xlab =</span> <span class="st">""</span>, </span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>        <span class="at">ylab =</span> <span class="st">"# SSCs"</span>, </span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">col =</span> <span class="st">"blue"</span>,</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">las =</span> <span class="dv">2</span>)  <span class="co"># This rotates the labels on the x-axis to make them more readable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sort species by count</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>species_counts <span class="ot">&lt;-</span> <span class="fu">sort</span>(<span class="fu">table</span>(sscs<span class="sc">$</span>species), <span class="at">decreasing =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate cumulative percentage</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>cumulative_perc <span class="ot">&lt;-</span> <span class="fu">cumsum</span>(species_counts) <span class="sc">/</span> <span class="fu">sum</span>(species_counts) <span class="sc">*</span> <span class="dv">100</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a bar plot for cumulative percentage</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="fu">barplot</span>(cumulative_perc, </span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">main =</span> <span class="st">"Cumulative Percentage of Records by Species"</span>, </span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">xlab =</span> <span class="st">"Species"</span>, </span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">ylab =</span> <span class="st">"Cumulative Percentage"</span>, </span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">col =</span> <span class="st">"green"</span>,</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>        <span class="at">las =</span> <span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-9-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="how-is-wingspan-distributed" class="level2">
+<h2 class="anchored" data-anchor-id="how-is-wingspan-distributed">How is wingspan distributed?</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="fu">hist</span>(sscs<span class="sc">$</span>wingspan))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="how-is-habitat-preference-distributed" class="level2">
+<h2 class="anchored" data-anchor-id="how-is-habitat-preference-distributed">How is habitat preference distributed?</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">barplot</span>(<span class="fu">prop.table</span>(<span class="fu">table</span>(sscs<span class="sc">$</span>open_closed)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="what-does-the-overall-curve-look-like" class="level2">
+<h2 class="anchored" data-anchor-id="what-does-the-overall-curve-look-like">What does the overall curve look like?</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>obs_gridded <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="st">"_targets/objects/obs_gridded"</span>)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a density plot</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(obs_gridded, <span class="fu">aes</span>(<span class="at">x =</span> local_hour)) <span class="sc">+</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">binwidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Butterfly Observations Across the Day"</span>, <span class="at">x =</span> <span class="st">"Hour of the Day"</span>, <span class="at">y =</span> <span class="st">"Density"</span>) <span class="sc">+</span> </span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_x_continuous</span>(<span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">23</span>, <span class="at">by =</span> <span class="dv">1</span>), <span class="at">labels =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">23</span>, <span class="at">by =</span> <span class="dv">1</span>),<span class="at">limits=</span><span class="fu">c</span>(<span class="dv">8</span>,<span class="dv">21</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 66669 rows containing non-finite values (`stat_bin()`).</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 2 rows containing missing values (`geom_bar()`).</code></pre>
+</div>
+<div class="cell-output-display">
+<p><img src="descriptive_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="are-effects-only-for-certain-families" class="level2">
+<h2 class="anchored" data-anchor-id="are-effects-only-for-certain-families">Are effects only for certain families?</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co">#obs_for_family &lt;- readRDS("_targets/objects/obs_data")</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="co">#species_families &lt;- obs_for_family %&gt;%</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="co">#  dplyr::select(family, species) %&gt;%  # Select columns of interest</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="co">#  distinct(species, .keep_all = TRUE)</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="co">#sscs &lt;- readRDS("_targets/objects/sscs2")</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="co">#sscs &lt;- merge(sscs,species_families,by="species")</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a><span class="co">#sscs$duration &lt;- sscs$median_upper - sscs$median_lower</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="co">#library(lme4)</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="co">#library(sjPlot)</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="co">#m &lt;- lmer(duration ~ (1+temp_sc|family) + (1+wingspan|family), data=sscs)</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a><span class="co">#plot_model(m, type="pred", terms=c("temp_sc","wingspan","family"), pred.type="re", ci.lvl=NA)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
 
 
 </section>

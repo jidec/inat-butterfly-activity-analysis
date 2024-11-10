@@ -7,7 +7,7 @@ title: "Data Prep"
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
-Load **colorEvoHelpers**, a package containing personal helpers, and **inatDailyActivity**
+Load packages including **colorEvoHelpers**, a package containing personal helpers, and **inatDailyActivity** containing the bias-adjustment pipeline
 
 ```{r}
 
@@ -15,51 +15,51 @@ Load **colorEvoHelpers**, a package containing personal helpers, and **inatDaily
 library(colorEvoHelpers)
 library(inatDailyActivity)
 library(dplyr)
+library(tibble)
+library(readr)
 
 ```
 
-Download Daymet data
+Load in iNat observations data downloaded from GBIF
 
 ```{r}
 
-downloadDaymet(cellsize_km=250,download_path="D:/GitProjects/inat-daily-activity-analysis/data")
-
+obs_data <- read_delim("data/raw/inat/usa_butterflies_inat_gbif.csv", delim = "\t", escape_double = FALSE, trim_ws = TRUE) # change this to dwc csv format 
 ```
 
-Create SSC (species-subseason-cell) data
+Add solar hour and season bin columns
 
 ```{r}
 
-sscs_8s_rmbf_250km_30nobs <- createSSCsFromRawData(taxon_obs_loc="D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_butterflies_inat_gbif.csv",
-                                                   baseline_obs_loc="D:/GitProjects/inat-daily-activity-analysis/data/raw/inat/usa_insects_inat_gbif.csv",
-                                                   season_intervals_per_year=8,rm_bfs_from_bl=TRUE,
-                                                   ssc_cellsize_km=250, ssc_n_obs_threshold=30,
-                                                   diff_metric_nbins=8,start_hr_trim=1,end_hr_trim = 1,
-                                                   merge_leptraits=TRUE, add_weib_metrics = FALSE)
+obs_data_ss <- datetimeToSolarAndSeason(obs_data,season_intervals_per_year = 4)
 ```
 
-Weibull metrics take the longest to add, so do that separately and track progress
+Grid up the data
 
 ```{r}
 
-sscs_8s_rmbf_250km_30nobs <- addWeibullMetricsToSSCs(sscs_8s_rmbf_250km_30nobs)
+obs_data_gridded <- gridUpDf(obs_data_ss,cellsize_km=250)
 ```
 
-Summarize to species for analysis across the phylogeny
+Create the SSCs
 
 ```{r}
 
-sscs_sp <- sscs %>%
-    group_by(species) %>%
-    dplyr::summarise(q5=mean(q5,na.rm=T),q50=mean(q50,na.rm=T),q95=mean(q95,na.rm=T),
-                     diff1=mean(diff_third1_mean,na.rm=T),
-                     diff2=mean(diff_third2_mean,na.rm=T),
-                     diff3=mean(diff_third3_mean,na.rm=T),
-                     pc1=mean(pc1,na.rm=T),pc2=mean(pc2,na.rm=T),
-                     freq_pc1=mean(freq_pc1,na.rm=T),freq_pc2=mean(freq_pc2,na.rm=T),
-                     freq_pc3=mean(freq_pc3,na.rm=T),freq_pc4=mean(freq_pc4,na.rm=T),
-                     freq_pc5=mean(freq_pc5,na.rm=T),
-                     shp_pc1 = mean(shp_pc1,na.rm=T),shp_pc2 = mean(shp_pc2,na.rm=T),
-                     wingspan=mean(wingspan,na.rm=T), mean_n_obs=mean(obs_n,na.rm=T), n_cells=n())
+sscs <- createSSCs(obs_data_gridded, approach="species_season_year_cell", min_per_ssc=30)
+```
 
+Bind climate data
+
+IMPORTANT - this step requires first downloading PRISM climate data using the prism package for all the years and seasons contained in your data, including setting the prism download directory
+
+```{r}
+
+sscs_climate <- bindPrismData(sscs)
+```
+
+Merge LepTraits (cite) into SSCs
+
+```{r}
+
+sscs_final <- mergeLeptraitsToSSCs(sscs_climate)
 ```

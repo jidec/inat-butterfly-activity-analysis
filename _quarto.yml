@@ -7,9 +7,14 @@ website:
   navbar:
     left:
       - href: index.qmd
-        text: Intro
+        text: About
       - data_prep.qmd
       - descriptive.qmd
+      - bias_adjust_example.qmd
+      - model_selection.qmd
+      - publication_figures.qmd
+      - bimodality.qmd
+      - observer_timings.qmd
 
 format:
   html:

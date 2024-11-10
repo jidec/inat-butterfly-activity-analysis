@@ -1,16 +1,146 @@
 ---
 title: "Descriptive"
+params:
+  data1: null
+  data2: null
 ---
-
-## How are individuals spatially distributed?
 
 ```{r}
 
-#sscs$latitude <- sscs$lat 
-#sscs$longitude <- sscs$lon 
-#plotLatLonHeatmap(sscs)
+library(colorEvoHelpers)
+library(inatDailyActivity)
+library(stringr)
+library(dplyr)
 
-hist(1:10)
+sscs <- readRDS("_targets/objects/sscs2")
 ```
 
-Actually not that bad
+## How are SSCs spatially distributed?
+
+```{r}
+
+str_c("Number of unique cells: ", length(unique(sscs$cell)))
+```
+
+```{r}
+sscs$latitude <- sscs$cell_lat
+sscs$longitude <- sscs$cell_lon
+hist(sscs$latitude)
+hist(sscs$longitude)
+```
+
+```{r}
+
+plotLatLonHeatmap(sscs)
+```
+
+## How are species sampled?
+
+```{r}
+
+str_c("Number of unique species: ", length(unique(sscs$species)))
+```
+
+```{r}
+
+# count the number of occurrences of each species
+species_counts <- table(sscs$species)
+# create a bar plot
+barplot(species_counts, 
+        main = "Distribution of Data by Species", 
+        xlab = "Species", 
+        ylab = "Number of Records", 
+        col = "blue",
+        las = 2)
+```
+
+```{r}
+
+hist(table(sscs$species),breaks=100,main="Distribution of species having at least X obs",ylab="# species",xlab="X Count Threshold")
+```
+
+```{r}
+
+# Count the occurrences of each species and sort
+species_counts <- sort(table(sscs$species), decreasing = TRUE)
+
+# Choose a cutoff, e.g., top 20 species (adjusting your original top_n to match your example)
+top_n <- 20
+top_species_counts <- head(species_counts, top_n)
+
+# Sum the rest into the 'Other' category
+other_count <- sum(tail(species_counts, -top_n))
+top_species_counts <- c(top_species_counts, Other = other_count)
+
+# Create a bar plot for the top N species + "Other"
+barplot(top_species_counts, 
+        main = "Top Species by Number of SSCs", 
+        xlab = "", 
+        ylab = "# SSCs", 
+        col = "blue",
+        las = 2)  # This rotates the labels on the x-axis to make them more readable
+```
+
+```{r}
+
+# Sort species by count
+species_counts <- sort(table(sscs$species), decreasing = TRUE)
+
+# Calculate cumulative percentage
+cumulative_perc <- cumsum(species_counts) / sum(species_counts) * 100
+
+# Create a bar plot for cumulative percentage
+barplot(cumulative_perc, 
+        main = "Cumulative Percentage of Records by Species", 
+        xlab = "Species", 
+        ylab = "Cumulative Percentage", 
+        col = "green",
+        las = 2)
+```
+
+## How is wingspan distributed?
+
+```{r}
+
+plot(hist(sscs$wingspan))
+```
+
+## How is habitat preference distributed?
+
+```{r}
+
+barplot(prop.table(table(sscs$open_closed)))
+```
+
+## What does the overall curve look like?
+
+```{r}
+
+obs_gridded <- readRDS("_targets/objects/obs_gridded")
+
+# Create a density plot
+ggplot(obs_gridded, aes(x = local_hour)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Butterfly Observations Across the Day", x = "Hour of the Day", y = "Density") + 
+    scale_x_continuous(breaks = seq(0, 23, by = 1), labels = seq(0, 23, by = 1),limits=c(8,21))
+```
+
+## Are effects only for certain families?
+
+```{r}
+
+#obs_for_family <- readRDS("_targets/objects/obs_data")
+#species_families <- obs_for_family %>%
+#  dplyr::select(family, species) %>%  # Select columns of interest
+#  distinct(species, .keep_all = TRUE)
+
+#sscs <- readRDS("_targets/objects/sscs2")
+#sscs <- merge(sscs,species_families,by="species")
+#sscs$duration <- sscs$median_upper - sscs$median_lower
+#library(lme4)
+#library(sjPlot)
+
+#m <- lmer(duration ~ (1+temp_sc|family) + (1+wingspan|family), data=sscs)
+#plot_model(m, type="pred", terms=c("temp_sc","wingspan","family"), pred.type="re", ci.lvl=NA)
+
+```

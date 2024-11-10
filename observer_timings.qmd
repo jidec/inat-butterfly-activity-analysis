@@ -1,0 +1,40 @@
+---
+title: "Extra: Observer Time Vetting"
+---
+
+So far the ones I've looked at are real, just superobservers that tend to prefer blacklighting and evenings
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+obs_timed <- readRDS("_targets/objects/obs_timed")
+obs_trimmed <- obs_timed %>% filter(local_hour > 7 & local_hour < 21)
+
+observers <- obs_timed %>% group_by(recordedBy) %>% summarize(local_hour=median(local_hour),n=n())
+observers_trimmed <- obs_trimmed %>% group_by(recordedBy) %>% summarize(local_hour=median(local_hour),n=n())
+
+hist(observers$local_hour,breaks=20)
+hist(observers_trimmed$local_hour,breaks=10)
+
+late_observers <- observers[observers$local_hour > 17 & observers$n > 50,]$recordedBy
+obs_alex <- obs_timed %>% filter(recordedBy == "Alex")
+hist(obs_alex$local_hour)
+
+obs_aidan <- obs_timed %>% filter(recordedBy == "Aidan")
+hist(obs_aidan$local_hour)
+View(obs_aidan)
+
+```
+
+Constant hours don't seem to be a problem really - there are no significant constant hour observers that don't get filtered out - and I think the ones there are real, just where someone observed a few for an hour (for a class, for example) then quit forever
+
+```{r}
+
+constant_hours <- obs_timed %>%
+  group_by(recordedBy) %>%
+  filter(n_distinct(local_hour) == 1 & n() > 10 & local_hour > 7 & local_hour < 20) %>%
+  distinct(recordedBy) # Get unique recordedBy values
+
+print(constant_hours)
+```

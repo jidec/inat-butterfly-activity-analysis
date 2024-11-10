@@ -1,0 +1,190 @@
+---
+title: "figures"
+execute:
+  eval: false
+---
+
+1\. Increased daylength should mean increased duration
+
+2.  Increased temperature should also mean increased duration because it means butterflies can warm up earlier
+
+```{r}
+library(lme4)
+library(splines)
+library(car)
+library(performance)
+library(sjPlot)
+
+# sscs is sccs_scaled
+sscs <- sscs2_final %>% mutate(wingspan=scale(wingspan),temp=scale(value))#,daylength=scale(daylength))
+
+sscs$duration <- sscs$q90_value - sscs$q10_value
+# m2 <- lmer(duration ~ ns(tmax,2) + ns(daylength,2) + (1|species), data = sscs_scaled)
+m <- lmer(duration ~ temp * wingspan + (1|species), data = sscs)
+
+summary(m)
+vif(m)
+r2_nakagawa(m)
+plot_model(m)
+plot_model(m, type="eff", terms="daylength")
+plot_model(m, type="eff", terms="tmax")
+AIC(m2)
+AIC(m)
+
+
+# Assuming 'm' is your model
+effect_plot <- plot_model(m, type = "eff", terms = "temp", return = "plot")
+effect_plot
+# Overlaying actual data points
+# Assuming 'data' is your original dataset and 'tmax' is the variable of interest
+effect_plot + geom_point(data = sscs, aes(x = temp, y = duration),alpha=0.05) + ylim(2.5,11)
+# Assuming 'm' is your model
+effect_plot <- plot_model(m, type = "eff", terms = "daylength", return = "plot")
+# Overlaying actual data points
+# Assuming 'data' is your original dataset and 'tmax' is the variable of interest
+effect_plot + geom_point(data = sscs_scaled, aes(x = daylength, y = duration),alpha=0.05) #+ ylim(2.5,11)
+
+```
+
+2.  Closed/mixed species should be active less at low temps but more in hot temps - this is not the case, partially due to the low sample size (2 species) of closed species in the USA
+
+```{r}
+
+m <- lmer(median_value ~ open_closed + (1|species), data = sscs_scaled)
+plot_model(m)
+
+m <- lmer(q10_value ~ open_closed + (1|species), data = sscs_scaled)
+plot_model(m)
+
+m <- lmer(q90_value ~ open_closed + (1|species), data = sscs_scaled)
+plot_model(m)
+```
+
+3.  
+
+4.  Smaller butterflies should be more sensitive to low and hot temperatures
+
+    This is partially true
+
+    Smaller butterflies do have the median and offset of their curves shifted earlier in the day, perhaps representing how they cant handle heat, but there is no interaction with temperature
+
+    Hey can I weight my values by the narrowness of tehri confidence intervals or something? I want to leverage that somehow
+
+    There doesnt have to be an interaction - still probbaly mediated by thermal biology - if the thermal ecology is consistent across all temperature regimes
+
+```{r}
+
+library(effects)
+
+m <- lmer(q10_value ~ ns(tmax,2) + wingspan + daylength + (1|species), data = sscs_scaled)
+summary(m)
+q10_wingspan <- plot_model(m, type="eff", terms=c("wingspan"),return="plot")
+q10_tmax <- plot_model(m, type="eff", terms=c("tmax"), return="plot")
+plot_model(m, type="eff", terms=c("wingspan","tmax"))
+plot_model(m, type="eff", terms=c("wingspan"))#,"tmax"))
+plot_model(m, type="eff", terms=c("tmax"))
+plot_model(m, type="eff", terms=c("daylength"))
+
+plot(allEffects(m))
+vif(m)
+r2_nakagawa(m)
+
+m <- lmer(median_value ~ ns(tmax,2) + wingspan + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m, type="eff", terms=c("wingspan","tmax"))
+plot_model(m, type="eff", terms=c("wingspan"))#,"tmax"))
+plot_model(m, type="eff", terms=c("tmax"))
+plot_model(m, type="eff", terms=c("daylength"))
+vif(m)
+r2_nakagawa(m)
+#plot_model(m, type="eff", terms="wingspan")
+
+
+m <- lmer(q90_value ~ ns(tmax,2) + wingspan + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m, type="eff", terms=c("wingspan","tmax"))
+plot_model(m, type="eff", terms=c("wingspan"))
+plot_model(m, type="eff", terms=c("tmax"))
+plot_model(m, type="eff", terms=c("daylength"))
+vif(m)
+r2_nakagawa(m)
+```
+
+4.  Temperature should interact with daylength
+
+```{r}
+
+m <- lmer(median_value ~ tmax * daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+vif(m)
+r2_nakagawa(m)
+
+m <- lmer(duration ~ tmax + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+vif(m)
+r2_nakagawa(m)
+
+m <- lmer(q10_value ~ ns(tmax,2) + wingspan + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+
+m <- lmer(q90_value ~ ns(tmax,2) + wingspan + daylength + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+```
+
+```{r}
+
+
+sscs_scaled$midday_dist <- abs(17 - sscs$median_value)
+m <- lmer(midday_dist ~ tmax * wingspan + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+plot_model(m, type="eff", terms=c("tmax","wingspan"))
+vif(m)
+r2_nakagawa(m)
+
+print("4 PM")
+sscs_scaled$midday_dist <- abs(16 - sscs$median_value)
+m <- lmer(midday_dist ~ tmax * wingspan + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+plot_model(m, type="eff", terms=c("tmax","wingspan"))
+vif(m)
+r2_nakagawa(m)
+
+print("3 PM")
+sscs_scaled$midday_dist <- abs(15 - sscs$median_value)
+m <- lmer(midday_dist ~ tmax * wingspan + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+plot_model(m, type="eff", terms=c("tmax","wingspan"))
+vif(m)
+r2_nakagawa(m)
+
+print("2 PM")
+sscs_scaled$midday_dist <- abs(14 - sscs$median_value)
+m <- lmer(midday_dist ~ tmax * wingspan + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+plot_model(m, type="eff", terms=c("tmax","wingspan"))
+vif(m)
+r2_nakagawa(m)
+
+print("1 PM")
+sscs_scaled$midday_dist <- abs(13 - sscs$median_value)
+m <- lmer(midday_dist ~ tmax * wingspan + (1|species), data = sscs_scaled)
+summary(m)
+plot_model(m)
+plot_model(m, type="eff", terms=c("tmax","wingspan"))
+vif(m)
+r2_nakagawa(m)
+
+# r2 sucks though compared to others
+# when a spline fits better than expected based on your hypotheses, what do? 
+```
+
+```         
+```

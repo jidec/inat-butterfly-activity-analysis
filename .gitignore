@@ -5,3 +5,7 @@
 
 /.quarto/
 *.csv
+
+/data/prism/
+/example_images
+/data/raw/inat/usa_butterflies_inat_gbif_dwc.zip

@@ -1,0 +1,192 @@
+---
+title: "Bias Adjust"
+execute:
+  eval: false
+---
+
+Here we apply the bias-adjustment approach to EVERY cell
+
+Load and filter raw observations data
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+
+obs_data <- readRDS("_targets/objects/obs_data_tiled")
+obs_data <- subset(obs_data, select = -c(geometry))
+obs_data <- filter(obs_data, local_hour >= 7)
+obs_data <- filter(obs_data, local_hour <= 20)
+```
+
+Filter to that cell
+
+```{r}
+
+sampling_effort <- obs_data %>%
+  group_by(cell, season, local_hour) %>%
+  summarise(n_obs = n()) 
+
+print(nrow(sampling_effort))
+
+#sampling_effort <- sampling_effort[1:3000,]
+```
+
+Make \~1000 GAMs one per season-cell combination
+
+(Later compare GAMs in high and low sample size areas)
+
+```{r}
+library(mgcv)
+library(dplyr)
+library(purrr)
+library(pbapply)
+
+# Step 1: Create a list of models for each combination of season and cell
+models <- sampling_effort %>%
+  distinct(season, cell) %>%
+  group_by(season, cell) %>%
+  summarize(model = list(mgcv::gam(n_obs ~ s(local_hour), data = filter(sampling_effort, season == season, cell == cell), family = "poisson")),
+            .groups = 'drop')
+
+# Step 2: Make predictions for each local_hour within each unique combination of season and cell
+gam_predictions <- sampling_effort %>%
+  distinct(season, cell, local_hour) %>%
+  left_join(models, by = c("season", "cell")) %>%
+  rowwise() %>%
+  mutate(effort = predict(model, newdata = tibble(local_hour = local_hour), type = "response")) %>%
+  select(-model)
+
+gam_predictions
+
+saveRDS(gam_predictions,"gam_predictions.rds")
+```
+
+Visualize the gam predictions
+
+```{r}
+
+#Viz
+gam_predictions %>%
+  ggplot() +
+  geom_col(aes(x=local_hour, y = effort), color = "black") +
+  facet_wrap(~season)
+```
+
+Append inverse effort back to original data
+
+```{r}
+
+obs_data <- obs_data %>%
+  left_join(gam_predictions, by = c("local_hour", "season","cell")) %>%
+  dplyr::mutate(
+    inverse_effort = 1/effort
+  )
+```
+
+Look at a test species and compare adjusted and unadjusted data
+
+```{r}
+
+### Subsample -- test species. ----
+testspecies <- obs_data %>%
+  dplyr::filter(species == "Pieris rapae")
+
+test <- testspecies %>%
+  group_by(season) %>%
+  dplyr::sample_n(size = 10000, replace = T, weight = inverse_effort)
+
+# Raw observation data.
+testspecies %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season)
+
+# subsampled observation data.
+test %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season)
+```
+
+Create bootstrap function
+
+```{r}
+
+my_bootstrap <- function(hours, inv_efforts, nbootstraps=50){
+    
+    bootstrap_medians <- numeric(nbootstraps)
+    bootstrap_q10s <- numeric(nbootstraps)
+    bootstrap_q90s <- numeric(nbootstraps)
+    
+    # Perform bootstrapping
+    for (i in 1:nbootstraps) {
+        sampled_hours <- sample(hours, replace=TRUE, size=length(hours), prob=inv_efforts)
+        bootstrap_medians[i] <- median(sampled_hours)
+        bootstrap_q10s[i] <- quantile(sampled_hours,0.1)
+        bootstrap_q90s[i] <- quantile(sampled_hours,0.9)
+    }
+
+    # Calculate the 5th percentile, median, and 95th percentile
+    median_lower <- quantile(bootstrap_medians, probs = 0.05)
+    median_value <- median(bootstrap_medians)
+    median_upper <- quantile(bootstrap_medians, probs = 0.95)
+    
+    q10_lower <- quantile(bootstrap_q10s, probs=0.05)
+    q10_value <- median(bootstrap_q10s)
+    q10_upper <- quantile(bootstrap_q10s, probs=0.95)
+    
+    q90_lower <- quantile(bootstrap_q90s, probs=0.05)
+    q90_value <- median(bootstrap_q90s)
+    q90_upper <- quantile(bootstrap_q90s, probs=0.95)
+    
+    # Return the results
+    return(list(median_lower = median_lower, median_value = median_value, median_upper = median_upper,
+                q10_lower = q10_lower, q10_value = q10_value, q10_upper = q10_upper,
+                q90_lower = q90_lower, q90_value = q90_value, q90_upper = q90_upper))
+}
+
+```
+
+Apply to SSCs
+
+```{r}
+
+min_per_ssc <- 20
+sscs <- obs_data %>%
+  group_by(species, season, cell) %>%
+  filter(n() >= min_per_ssc) %>%
+  summarize(
+    unadj_median = median(local_hour),
+    bootstrap_results = list(my_bootstrap(local_hour, inverse_effort))
+  ) %>%
+  unnest_wider(bootstrap_results)
+```
+
+Quickly test effect of season on median foraging
+
+```{r}
+
+library(lme4)
+library(sjPlot)
+plot_model(lmer(median ~ season + (1|species), data=sscs))
+plot_model(lmer(unadj_median ~ season + (1|species), data=sscs))
+```
+
+Visualize species
+
+```{r}
+mycolors <- c(summer = "#C5283D", winter = "#1C3144", monsoon = "#228B22")
+
+sscs %>%
+  dplyr::arrange(desc(median)) %>%
+  ggplot() +
+  aes(y = species, yend = species, color = season) +
+  geom_segment(aes(x = lower_bound, xend = upper_bound)) +
+  geom_point(aes(x = median)) +
+  scale_color_manual(values = mycolors)+
+  labs(title = "Median Shifts", 
+       x = "Hour",
+       y = "Common Name")
+```

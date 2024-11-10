@@ -1,0 +1,108 @@
+---
+title: "larva spot checks"
+execute:
+  eval: false
+---
+
+Load in obs and sample
+
+```{r}
+
+sscs <- readRDS("_targets/objects/sscs2")
+obs_fixed <- readRDS("_targets/objects/obs_fixed")
+nrow(obs_fixed)
+obs_fixed <- dplyr::sample_n(obs_fixed,500)
+
+```
+
+Get image links
+
+```{r}
+
+library(stringr)
+inat_links <- getFirstiNatImageLinks(obs_fixed$occurrenceID)
+inat_links
+```
+
+Get images
+
+```{r}
+
+# Load necessary libraries
+library(httr)
+library(jsonlite)
+
+# Define a vector of observation IDs
+observation_ids <- c("3764011", "3935818", "3805103") # Replace with your observation IDs
+observation_id = "3764011"
+# Function to get the first image URL for an observation ID
+getFirstiNatImageLinks <- function(inat_obs_ids,take_obs_urls=TRUE) {
+  
+    base_url <- "https://api.inaturalist.org/v1/observations/"
+    
+    response <- GET(paste0(base_url, observation_id))
+
+    if (status_code(response) == 200) {
+        data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+        if (length(data$results) > 0 && length(data$results[[1]]$photos) > 0) {
+            data$results$photos[[1]]$url
+            return(data$results$photos[[1]]$url)
+        } else {
+            return(NA)
+        }
+    } else {
+        warning(paste("Failed to retrieve observation:", observation_id))
+        return(NA)
+    }
+}
+
+getFirstImageLinks()
+# Retrieve the first image URLs for all observation IDs
+first_images <- sapply(observation_ids, get_first_image)
+
+# Print the results
+print(first_images)
+```
+
+```{r}
+
+getFirstiNatImageLinks <- function(inat_obs_ids,take_urls=TRUE) {
+    library(httr)
+    library(jsonlite)
+  
+    if(take_urls){
+      inat_obs_ids <- str_extract(inat_obs_ids, "\\d+$")
+    }
+  
+    observation_ids <-  inat_obs_ids
+    base_url <- "https://api.inaturalist.org/v1/observations/"
+    image_urls <- vector("list", length(observation_ids)) # Initialize empty list for URLs
+
+    # Loop through each observation ID
+    for (i in seq_along(observation_ids)) {
+        observation_id <- observation_ids[i]
+        response <- GET(paste0(base_url, observation_id))
+
+        if (status_code(response) == 200) {
+            data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+                image_urls[[i]] <- data$results$photos[[1]]$url[1]
+        } else {
+            warning(paste("Failed to retrieve observation:", observation_id))
+            image_urls[[i]] <- NA
+        }
+    }
+    image_urls <- unlist(image_urls)
+    image_urls <- str_replace(img_urls,"square","medium")
+    return(unlist(image_urls))
+}
+
+img_urls <- str_replace(img_urls,"square","medium")
+obs_fixed_500 <- sample_n(obs_fixed,500)
+obs_fixed_500$first_img_url <- getFirstiNatImageLinks(obs_fixed_500$occurrenceID)
+img_urls <- obs_fixed_500$first_img_url[!is.na(obs_fixed_500$first_img_url)]
+```
+
+```{r}
+
+downloadImgsFromURLs(img_urls,"example_images")
+```

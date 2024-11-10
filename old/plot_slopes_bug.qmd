@@ -1,0 +1,25 @@
+---
+title: "plot_slope_bug"
+execute:
+  eval: false
+---
+
+```{r}
+sscs_and_tree <- readRDS("sscs_and_tree.rds")
+
+sscs <- sscs_and_tree[[1]]
+tree <- sscs_and_tree[[2]]
+
+m <- pglmm(q10_value ~ temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__), data = sscs, cov_ranef = list(species=tree), bayes=TRUE)
+plot_bayes(m)
+
+plotPglmmEffect(m,sscs, response_colname = "q10_value", pred_colname="daylength_sc", other_pred_colnames = c("temp_sc","wingspan_sc"))
+p + labs(x = "Daylength", y = "Onset") + geom_point(data = sscs, aes(x = daylength_sc, y = q10_value),alpha=0.05)
+
+m <- getPlotLM(sscs,model_type="pglmm",bayes=T,response="q10_value",formula="temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)",tree=tree)#, data = sscs, cov_ranef = list(species=tree), bayes=TRUE)# print(vif(m))
+plot_bayes(m)
+
+plotPglmmEffect(m,sscs, response_colname = "q10_value", pred_colname="daylength_sc", other_pred_colnames = c("temp_sc","wingspan_sc"))
+p + labs(x = "Daylength", y = "Onset") + geom_point(data = sscs, aes(x = daylength_sc, y = q10_value),alpha=0.05)
+
+```

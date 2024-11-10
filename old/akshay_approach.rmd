@@ -1,0 +1,327 @@
+---
+title: "Akshay's Approach"
+execute:
+  eval: false
+---
+
+Import raw iNat observations
+
+```{r}
+
+library(readr)
+library(inatDailyActivity)
+library(colorEvoHelpers)
+
+data <- read_delim("data/raw/inat/usa_butterflies_inat_gbif.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+```
+
+```{r}
+
+data <- datetimeToSolarAndSeason(data,season_intervals_per_year = 4)
+data <- data[data$local_hour > 6 & data$local_hour < 20,]
+
+```
+
+```{r}
+
+data$lat <- data$decimalLatitude
+data$lon <- data$decimalLongitude 
+
+data <- gridUpDf(data,cellsize_km = 250)
+
+```
+
+Get sampling effort (number of observations) for each season-cell-hour combination.
+
+```{r}
+library(dplyr)
+
+sampling_effort <- data %>%
+  group_by(season, cell, local_hour) %>%
+  summarise(n_obs = n())
+```
+
+Plot sampling effort by season and hour
+
+```{r}
+library(ggplot2)
+sampling_effort %>%
+  ggplot() +
+  geom_col(aes(x=local_hour, y = n_obs), color = "black") +
+  facet_wrap(~season)
+
+```
+
+# GAM Approach
+
+Make a GAM predicting the sampling effort (number of observations) by season, cell, and hour
+
+My understanding of this is that compared to simply using the sampling effort directly, building a GAM and using it to predict "smoothes over" the edges of the bias and is thus more accurate
+
+```{r}
+
+m <- mgcv::gam(n_obs ~ season + cell + local_hour, data=sampling_effort, family = "poisson")
+```
+
+```{r}
+pred <- predict(m, data) 
+pred <- 1 / as.numeric(pred)
+data$inverse_pred_effort <- pred
+```
+
+Look at all butterflies
+
+```{r}
+
+data <- data[!is.na(data$inverse_pred_effort),]
+
+  
+library(ggplot2)
+sampling_effort %>%
+  ggplot() +
+  geom_col(aes(x=local_hour, y = n_obs), color = "black") +
+  facet_wrap(~season)
+
+effort_inverse_weighted <- data %>%
+  dplyr::sample_n(size = 1000, replace = T, weight = data$inverse_pred_effort)
+
+effort_inverse_weighted %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Adjusted")
+
+```
+
+I think this makes sense right?
+
+It is more even, counteracting the bias towards people observing in the late afternoon.
+
+Examine one species closely
+
+```{r}
+library(dplyr)
+
+    ### Subsample -- test species. ----
+  testspecies <- data %>%
+    dplyr::filter(species == "Pieris rapae")
+  # filter out cell species year combos that are data poor
+  
+  test <- testspecies %>%
+    dplyr::sample_n(size = 1000, replace = T, weight = testspecies$inverse_pred_effort)
+  
+  library(ggplot2)
+  # Raw observation data.
+  testspecies %>%
+    ggplot() +
+    geom_bar(aes(local_hour), color = "black") +
+    facet_wrap(~season) + ggtitle("Raw Hours Observed By Season")
+  
+  # subsampled observation data.
+  test %>%
+    ggplot() +
+    geom_bar(aes(local_hour), color = "black") +
+    facet_wrap(~season) + ggtitle("Bootstrapped-Inverse-Effort-Weighted Hours Observed By Season")
+
+```
+
+```{r}
+
+library(dplyr)
+
+    ### Subsample -- test species. ----
+  testspecies <- data %>%
+    dplyr::filter(species == "Pieris rapae")
+  # filter out cell species year combos that are data poor
+  
+  test <- testspecies %>%
+    dplyr::sample_n(size = 1000, replace = T, weight = testspecies$inverse_pred_effort)
+  
+  library(ggplot2)
+  # Raw observation data.
+  testspecies %>%
+    ggplot() +
+    geom_bar(aes(local_hour), color = "black") +
+    facet_wrap(~season) + ggtitle("Raw Hours Observed By Season")
+  
+  # subsampled observation data.
+  test %>%
+    ggplot() +
+    geom_bar(aes(local_hour), color = "black") +
+    facet_wrap(~season) + ggtitle("Bootstrapped-Inverse-Effort-Weighted Hours Observed By Season")
+```
+
+```{r}
+
+library(dplyr)
+
+speciesList <- c("Vanessa atalanta", "Urbanus proteus", "Papilio glaucus")
+
+species <- "Vanessa atalanta"
+  ### Subsample -- test species. ----
+testspecies <- data %>%
+  dplyr::filter(species == species)
+# filter out cell species year combos that are data poor
+
+test <- testspecies %>%
+  dplyr::sample_n(size = 1000, replace = T, weight = testspecies$inverse_pred_effort)
+
+library(ggplot2)
+# Raw observation data.
+testspecies %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Raw Hours Observed By Season")
+
+# subsampled observation data.
+test %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Bootstrapped-Inverse-Effort-Weighted Hours Observed By Season")
+
+species <- "Urbanus proteus"
+  ### Subsample -- test species. ----
+testspecies <- data %>%
+  dplyr::filter(species == species)
+# filter out cell species year combos that are data poor
+
+test <- testspecies %>%
+  dplyr::sample_n(size = 1000, replace = T, weight = testspecies$inverse_pred_effort)
+
+library(ggplot2)
+# Raw observation data.
+testspecies %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Raw Hours Observed By Season")
+
+# subsampled observation data.
+test %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Bootstrapped-Inverse-Effort-Weighted Hours Observed By Season")
+
+species <-  "Papilio glaucus"
+  ### Subsample -- test species. ----
+testspecies <- data %>%
+  dplyr::filter(species == species)
+# filter out cell species year combos that are data poor
+
+test <- testspecies %>%
+  dplyr::sample_n(size = 1000, replace = T, weight = testspecies$inverse_pred_effort)
+
+library(ggplot2)
+# Raw observation data.
+testspecies %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Raw Hours Observed By Season")
+
+# subsampled observation data.
+test %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season) + ggtitle("Bootstrapped-Inverse-Effort-Weighted Hours Observed By Season")
+```
+
+Making sense of this:
+
+1.  In the spring
+
+```{r}
+library(dplyr)
+
+### Subsample -- test species. ----
+testspecies <- data %>%
+  dplyr::filter(species == "Papilio glaucus")
+
+
+test <- testspecies %>%
+  dplyr::sample_n(size = 1000, replace = T, weight = testspecies$inverse_pred_effort)
+
+library(ggplot2)
+# Raw observation data.
+testspecies %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season)
+
+# subsampled observation data.
+test %>%
+  ggplot() +
+  geom_bar(aes(local_hour), color = "black") +
+  facet_wrap(~season)
+
+```
+
+# Confidence Intervals
+
+myBootFun is the bootstrapping function, which happens 5000 times
+
+It samples the median magnitude of activity with replacement using 80% of the dataset sampled proportional to inverse effort
+
+The lapply loop takes a speciesList and for each species performs the bootstrapping,
+
+```{r}
+# Calculate elevation CI's ------------
+library(boot)
+library(data.table)
+
+myBootFun <- function(df) {
+  quantile(sample(df$local_hour, size = round(nrow(df) * .8), prob = df$inverse_pred_effort, replace = T), 0.5)
+}
+
+
+speciesList <- c("Vanessa atalanta", "Urbanus proteus", "Papilio glaucus")
+seasonList <- c("1","2","3","4")
+out <- lapply(speciesList, function(species) {
+  out <- lapply(seasonList, function(s) {
+    
+    writeLines(paste(species, s, sep = " - "))
+    df <- dplyr::filter(data, species == species, season == s)
+    if(nrow(df) < 5) {
+      writeLines("skipping");
+      return(NULL)
+    } else {
+      
+      nreps <- 5000
+      out_rep <- replicate(nreps, myBootFun(df))
+      df95 <- quantile(out_rep, c(.025, .5, .975))
+      
+      data.table(season = s, common_name = species, t(data.frame(df95)))
+    }
+    
+  }) %>%
+    data.table::rbindlist()
+}) %>%
+  data.table::rbindlist()
+```
+
+```{r}
+
+#Save data
+if(!dir.exists("bin")) dir.create("bin")
+fwrite(out, file = file.path("bin", "quantileEstimates.csv"), row.names = F)
+
+#Viz
+out %>%
+  dplyr::arrange(desc(`50%`)) %>%
+  ggplot() +
+  aes(y = common_name, yend = common_name, color = season) +
+  geom_segment(aes(x = `2.5%`, xend = `97.5%`)) +
+  geom_point(aes(x = `50%`)) +
+  scale_color_manual(values = mycolors)+
+  labs(title = "Median Shifts", 
+       x = "Elevation",
+       y = "Common Name")
+```
+
+```{r}
+
+  dplyr::filter( common_name %in% c("Indian Blackbird", "Square-tailed Bulbul", 
+                                    "Nilgiri Pipit", "Nilgiri Laughingthrush", 
+                                    "Nilgiri Flycatcher", "Palani Laughingthrush", 
+                                    "Black-and-orange Flycatcher", speciesList[1:23])) %>%
+```

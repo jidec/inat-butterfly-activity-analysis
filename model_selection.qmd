@@ -1,0 +1,185 @@
+---
+title: "Model Selection"
+execute:
+  eval: false
+---
+
+The final model formulas were selected based on dropping variables (and interactions) to maximize AIC
+
+## Models with temp \* wingspan interaction vs. without
+
+```{r}
+
+library(colorEvoHelpers)
+library(qpcR)
+
+sscs <- readRDS("_targets/objects/sscs2")
+#tree <- readRDS()
+  
+f <- "temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+f_intr <- "temp_sc * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+
+
+# WAIC is equal 
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f_intr,tree=tree)
+#akaike.weights(c(28138,28130))
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f_intr,tree=tree)
+
+summary(m)
+plot_model(m,type="int", terms=c("temp_sc","wingspan_sc"))
+
+```
+
+## Models with spline on temperature vs. without
+
+```{r}
+
+library(splines)
+
+f <- "temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+f_spl <- "ns(temp_sc,2) + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f_spl,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f_spl,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f_spl,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f_spl,tree=tree)
+```
+
+## Check VIFs using non-phylogenetic LMMs
+
+```{r}
+
+# VIFS: low without cell, high 7 with
+m <- getPlotLM(sscs,model_type="lmer",response="duration", formula="temp + wingspan + daylength + (1|cell) + (1|species)")
+vif(m)
+
+# VIFS: low without cell, high with
+m <- getPlotLM(sscs,model_type="lmer",response="q10_value", formula="temp + wingspan + daylength + (1|cell) + (1|season) + (1|species)")
+vif(m)
+
+# VIFS: low without cell, high with
+m <- getPlotLM(sscs,model_type="lmer",response="median_value", formula="temp + wingspan + daylength + (1|cell) + (1|season) + (1|species)")
+vif(m)
+
+```
+
+## Run non bayesian to get more effects detail
+
+## Try to plot points for normal LMM?
+
+```{r}
+
+library(sjPlot)
+m <- getPlotLM(sscs,model_type="lmer",response="q10_value", formula="temp + wingspan + daylength + (1|cell) + (1|season) + (1|species)",tree=tree)
+
+plot_model(m)
+plot_model(m, type = "int")
+
+
+```
+
+## Caitlyn question
+
+```{r}
+
+#m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula="temp_sc + wingspan_sc + daylength_sc + (1|cell) + (1|season) + (1|species__) + n_obs + (wingspan_sc|family)",tree=tree)
+
+#p <- plotPglmmEffect(m,sscs,response_colname = "duration",pred_colname = "wingspan_sc",other_pred_colnames = c("wingspan_sc","daylength_sc","temp_sc"))
+#plot(p + labs(x = "Wingspan", y = "Duration") + geom_point(data = sscs, aes(x = temp_sc, y = duration),alpha=0.05))
+
+
+# Define the model without phylogenetic random effects
+m <- glmer(duration ~ temp_sc + wingspan_sc + daylength_sc + n_obs + 
+            (1 | cell) + (1 | species) + (1 | family), 
+            data = sscs)
+
+# Plot random effects directly
+plot_model(m, type = "re")
+
+plot_model(m)
+
+#plot_model(m, type="pred", terms=c("family","wingspan_sc"))
+
+#plot_model(m, type = "est", show.values = TRUE, value.offset = 0.4)
+```
+
+```{r}
+
+library(colorEvoHelpers)
+
+f <- "temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+f_intr <- "daylength_sc * temp_sc + wingspan_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+
+
+# WAIC is equal 
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f_intr,tree=tree)
+
+
+plot_bayes(m,type="pred",terms=c("temp_sc","wingspan_sc"))
+```
+
+```{r}
+
+library(colorEvoHelpers)
+
+f <- "temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+f_intr <- "daylength_sc * temp_sc * wingspan_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)"
+
+
+# WAIC is equal 
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="duration", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q10_value", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="median_value", formula=f_intr,tree=tree)
+
+# WAIC is equal
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f,tree=tree)
+m <- getPlotLM(sscs,model_type="pglmm",response="q90_value", formula=f_intr,tree=tree)
+
+
+plot_model(m,type="int",terms=c("temp_sc","wingspan_sc"))
+plot_bayes(m,type="pred",terms=c("temp_sc","wingspan_sc"))
+#sjp.int
+```

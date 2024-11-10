@@ -1,0 +1,102 @@
+---
+title: "New SSC Approach"
+---
+
+1.  Start with observation data, with columns such as "species", "season", "grid cell" (250 km), and hour (local solar hour)
+2.  Reshape the observation data to sampling effort by grouping by season, 250 km grid cell, and hour then summarizing to the number of samples (observations) in each season-cell-hour
+
+```{r}
+obs_data <- readRDS("_targets/objects/obs_data_tiled")
+obs_data <- subset(obs_data, select = -c(geometry))
+
+sampling_effort <- obs_data %>%
+  group_by(season, cell, local_hour) %>%
+  summarise(n_obs = n())
+```
+
+2.  Create a GAM predicting sampling effort \~ season + cell + hour
+
+```{r}
+#m <- mgcv::gam(n_obs ~ season + cell + local_hour, data=sampling_effort, family = "poisson")
+
+
+
+m <- mgcv::gam(n_obs ~ s(local_hour), data=sampling_effort, family = "poisson")
+
+m <- 
+```
+
+3.  Feed the INITIAL observation data back in
+
+```{r}
+
+
+pred <- predict(m, obs_data)
+pred <- 1 / as.numeric(pred)
+obs_data$inverse_pred_effort <- pred
+
+
+# visualize new curve
+library(ggplot2)
+obs_data <- dplyr::filter(obs_data,!is.na(inverse_pred_effort))
+sampled_hours <- data.frame(hour=sample(obs_data$local_hour,replace = T,size=length(obs_data$local_hour),prob=obs_data$inverse_pred_effort))
+sampled_hours_og <- data.frame(hour=sample(obs_data$local_hour,replace = T,size=length(obs_data$local_hour)))
+
+# Create a ggplot object and add both histograms to it
+ggplot() +
+  scale_x_continuous(breaks = seq(0, 23, by = 1), labels = seq(0, 23, by = 1)) + 
+  geom_histogram(data = sampled_hours, aes(x = hour), fill = "blue", alpha = 0.5, binwidth=1) +
+  geom_histogram(data = sampled_hours_og, aes(x = hour), fill = "red", alpha = 0.5, binwidth=1) +
+  labs(title = "Overlayed Histograms")
+```
+
+4.  Create a fun that samples based on inverse pred effort, thus upweighting observations that are less expected
+
+```{r}
+
+my_bootstrap_median <- function(hours,inv_efforts){
+    if(length(hours) < min_per_cell_n){
+      return(-1)
+    }
+    sampled_hours <- sample(hours, replace=T, size=length(hours), prob=inv_efforts)
+    med <- median(sampled_hours)
+    return(med)
+  }
+```
+
+5.  Summarize initial data down to species-season-cell combinations, each with median foraging hour adjusted for bias by the weighting
+
+```{r}
+
+sscs <- obs_data %>%
+  group_by(species,season,cell) %>%
+  dplyr::summarise(median_hr_bs=my_bootstrap_median(local_hour,inverse_pred_effort))
+```
+
+6.  View some unadjusted and bias-adjusted curves
+
+```{r}
+library(dplyr)
+
+test <- obs_data %>% group_by(species,season,cell) %>% summarise(hours=list(local_hour),inv_efforts=list(inverse_pred_effort))
+test$n <- sapply(test$hours, length)
+test <- filter(test, n > 100)
+scale01 <- function(input_vector) {
+  min_value <- min(input_vector)
+  max_value <- max(input_vector)
+  scaled_vector <- (input_vector - min_value) / (max_value - min_value)
+  return(scaled_vector)
+}
+
+i <- 2
+sampled <- sample(test$hours[[i]], size=10000, replace=T) #size=length(test$hours[[i]])
+hist(sampled,xlim=c(8,20))
+adj <- sample(test$hours[[i]], size=10000, replace=T, prob=test$inv_efforts[[i]])
+hist(adj,xlim=c(8,20))
+adj2 <- sample(test$hours[[i]], size=10000, replace=T, prob=scale_to_01(test$inv_efforts[[i]]))
+hist(adj2,xlim=c(8,20))
+
+scale_to_01(test$inv_efforts[[i]]
+
+
+```
