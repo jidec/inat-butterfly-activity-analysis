@@ -1,0 +1,225 @@
+---
+title: "Publication Figures"
+---
+
+Below are the steps to build the figures shown in our publication
+
+```{r}
+
+library(colorEvoHelpers)
+library(splines)
+library(rr2)
+library(performance)
+library(dplyr)
+library(ggpubr)
+
+sscs <- readRDS("_targets/objects/sscs2")
+sscs$temp <- sscs$value
+sscs$duration <- sscs$q90_value - sscs$q10_value
+sscs$clade <- sscs$species
+sscs$cell <- as.factor(sscs$cell)
+tree <- loadFixTree(tree_location = "data/raw/bf_species_tree.txt",remove_first_split = TRUE)
+
+sscs_sp <- sscs %>% group_by(species) %>% summarize(duration=mean(duration),median=mean(median_value),
+                                                onset=mean(q10_value),offset=mean(q90_value),wingspan=mean(wingspan),n=n()) %>% filter(n > 15) %>% mutate(clade=species)
+
+obs_for_family <- readRDS("_targets/objects/obs_data")
+species_families <- obs_for_family %>%
+  dplyr::select(family, species) %>%  # Select columns of interest
+  distinct(species, .keep_all = TRUE)
+
+sscs <- merge(sscs,species_families,by="species")
+sscs_and_tree <- trimDfToTree(sscs,tree)
+sscs <- sscs_and_tree[[1]]
+tree <- sscs_and_tree[[2]]
+```
+
+## Figure 1. Spatial, temporal, and taxonomic distribution of SSCs
+
+```{r}
+
+p <- plotScatterpie(sscs)
+```
+
+## Figure 2. Duration of diel activity increases with daylength, temperature, and wingspan
+
+```{r}
+
+m <- getPlotBRMS(response="duration",formula="ns(temp_sc,2) + wingspan_sc + temp_sc:wingspan_sc + daylength_sc + (1|cell)",tree=tree,data=sscs)
+
+plot_model(m, type="int",terms = c("temp_sc", "wingspan_sc"),show.data=TRUE)
+
+
+m <- getPlotLM(sscs,model_type="pglmm",bayes=T,response="duration",formula="temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)",tree=tree)
+# temperature is most reasonable 
+print(rr2::R2(m)) 
+summary(m)
+
+# effect of temperature
+p1 <- plotPglmmEffect(m, sscs, tree, response_colname = "duration", pred_colname="temp_sc", other_pred_colnames = c("daylength_sc","wingspan_sc"), 
+                     random_effect_colnames = c("species","cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p1 <- p1 + labs(x = "Temperature", y = "Daily Activity Duration (Hours)") + geom_point(data = sscs, aes(x = temp_sc, y = duration),alpha=0.05)
+
+# effect of daylength
+p2 <- plotPglmmEffect(m, sscs, tree, response_colname = "duration", pred_colname="daylength_sc", other_pred_colnames = c("temp_sc","wingspan_sc"), 
+                     random_effect_colnames = c("species","cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p2 <- p2 + labs(x = "Daylength", y = "Duration") + geom_point(data = sscs, aes(x = daylength_sc, y = duration),alpha=0.05)
+p2 <- p2 + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+
+# effect of wingspan
+p3 <- plotPglmmEffect(m, sscs, tree, response_colname = "duration", pred_colname="wingspan_sc", other_pred_colnames = c("daylength_sc","temp_sc"), 
+                     random_effect_colnames = c("species","cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p3 <- p3 + labs(x = "Wingspan", y = "Duration") + geom_point(data = sscs, aes(x = wingspan_sc, y = duration),alpha=0.05)
+p3 <- p3 + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+
+ggarrange(p1, p2, p3, ncol = 3, nrow = 1)
+
+```
+
+```{r}
+
+library(brms)
+library(splines) # For the ns() function
+library(ggplot2)
+
+# Assuming your model is something like this:
+# model <- brm(response ~ ns(temp_sc, 2) + (1 | group), data = your_data, family = "gaussian")
+
+your_data <- sscs
+model <- m
+# Generate new data
+new_data <- data.frame(
+  temp_sc = seq(min(your_data$temp_sc), max(your_data$temp_sc), length.out = 100),
+  wingspan_sc = mean(your_data$wingspan_sc, na.rm = TRUE),  # Set to mean or another value
+  daylength_sc = mean(your_data$daylength_sc, na.rm = TRUE) # Set to mean or another value
+)
+
+# Predict without random effects
+preds <- posterior_epred(model, newdata = new_data, re_formula = NA)
+
+# Summarize predictions
+pred_summary <- data.frame(
+  temp_sc = new_data$temp_sc,
+  fit = apply(preds, 2, mean),
+  lower = apply(preds, 2, function(x) quantile(x, 0.025)),
+  upper = apply(preds, 2, function(x) quantile(x, 0.975))
+)
+
+# Plot
+library(ggplot2)
+ggplot(pred_summary, aes(x = temp_sc, y = fit)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+  labs(x = "Scaled Temperature (temp_sc)", y = "Predicted Response", title = "Effect of Temperature (Spline)") +
+  theme_minimal()
+
+```
+
+## Figure 3. Effects of daylength, temperature, and wingspan on onset, median, and offset of diel activity
+
+```{r}
+
+rmPlotAxis <- function(p, rm_x=FALSE, rm_y=FALSE){
+  if(rm_y){
+    p <- p + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+  }
+  if(rm_x){
+    p <- p + theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+  }
+  return(p)
+}
+
+## onset
+m <- getPlotLM(sscs,model_type="pglmm",bayes=T,response="q10_value",formula="temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)",tree=tree)#, data = sscs, cov_ranef = list(species=tree), bayes=TRUE)# print(vif(m))
+print(rr2::R2(m))
+summary(m)
+# effect of temp
+p1 <- plotPglmmEffect(m,sscs,tree,response_colname = "q10_value",pred_colname = "temp_sc",other_pred_colnames = c("wingspan_sc","daylength_sc"), 
+                     random_effect_colnames = c("species","cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p1 <- p1 + labs(x = "Temperature", y = "Onset") + geom_point(data = sscs, aes(x = temp_sc, y = q10_value),alpha=0.05)
+# effect of daylength
+p2 <- plotPglmmEffect(m,sscs,tree,response_colname = "q10_value",pred_colname = "daylength_sc",other_pred_colnames = c("wingspan_sc","temp_sc"), 
+                     random_effect_colnames = c("species","cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p2 <- p2 + labs(x = "Daylength", y = "Onset") + geom_point(data = sscs, aes(x = daylength_sc, y = q10_value),alpha=0.05)
+p2 <- rmPlotAxis(p2,rm_y=TRUE)
+# effect of wingspan 
+p3 <- plotPglmmEffect(m,sscs,tree,response_colname = "q10_value",pred_colname = "wingspan_sc",other_pred_colnames = c("temp_sc","daylength_sc"),
+                     random_effect_colnames = c("species","cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p3 <- p3 + labs(x = "Wingspan", y = "Onset") + geom_point(data = sscs, aes(x = wingspan_sc, y = q10_value),alpha=0.05)
+p3 <- p3 + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+p3 <- rmPlotAxis(p3,rm_y=TRUE)
+
+
+## median
+m <- getPlotLM(sscs, model_type="pglmm", bayes=T, response="median_value", formula="temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)", tree=tree)
+print(rr2::R2(m))
+summary(m)
+# Effect of temperature on median_value
+p4 <- plotPglmmEffect(m, sscs, tree, response_colname="median_value", pred_colname="temp_sc", other_pred_colnames=c("wingspan_sc", "daylength_sc"), 
+                     random_effect_colnames=c("species", "cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p4 <- p4 + labs(x = "Temperature", y = "Peak") + geom_point(data = sscs, aes(x = temp_sc, y = median_value), alpha=0.05)
+p4 <- rmPlotAxis(p4,rm_x=TRUE)
+# Effect of daylength on median_value
+p5 <- plotPglmmEffect(m, sscs, tree, response_colname="median_value", pred_colname="daylength_sc", other_pred_colnames=c("wingspan_sc", "temp_sc"), 
+                     random_effect_colnames=c("species", "cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p5 <- p5 + labs(x = "Daylength", y = "Peak") + geom_point(data = sscs, aes(x = daylength_sc, y = median_value), alpha=0.05)
+p5 <- rmPlotAxis(p5,rm_x=TRUE,rm_y=TRUE)
+# Effect of wingspan on median_value
+p6 <- plotPglmmEffect(m, sscs, tree, response_colname="median_value", pred_colname="wingspan_sc", other_pred_colnames=c("temp_sc", "daylength_sc"),
+                     random_effect_colnames=c("species", "cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p6 <- p6 + labs(x = "Wingspan", y = "Peak") + geom_point(data = sscs, aes(x = wingspan_sc, y = median_value), alpha=0.05)
+p6 <- rmPlotAxis(p6,rm_x=TRUE,rm_y=TRUE)
+
+
+## offset
+m <- getPlotLM(sscs, model_type="pglmm", bayes=T, response="q90_value", formula="temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)", tree=tree)
+print(rr2::R2(m))
+summary(m)
+# Effect of temperature on q90_value
+p7 <- plotPglmmEffect(m, sscs, tree, response_colname="q90_value", pred_colname="temp_sc", other_pred_colnames=c("wingspan_sc", "daylength_sc"), 
+                     random_effect_colnames=c("species", "cell"), random_effects_formula="(1|cell) +s (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p7 <- p7 + labs(x = "Temperature", y = "Offset") + geom_point(data = sscs, aes(x = temp_sc, y = q90_value), alpha=0.05)
+p7 <- rmPlotAxis(p7,rm_x=TRUE)
+# Effect of daylength on q90_value
+p8 <- plotPglmmEffect(m, sscs, tree, response_colname="q90_value", pred_colname="daylength_sc", other_pred_colnames=c("wingspan_sc", "temp_sc"), 
+                     random_effect_colnames=c("species", "cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p8 <- p8 + labs(x = "Daylength", y = "Offset") + geom_point(data = sscs, aes(x = daylength_sc, y = q90_value), alpha=0.05)
+p8 <- rmPlotAxis(p8,rm_y=TRUE,rm_x=TRUE)
+# Effect of wingspan on q90_value
+p9 <- plotPglmmEffect(m, sscs, tree, response_colname="q90_value", pred_colname="wingspan_sc", other_pred_colnames=c("temp_sc", "daylength_sc"),
+                     random_effect_colnames=c("species", "cell"), random_effects_formula="(1|cell) + (0+temp_sc|cell) + (1|species__) + (0+temp_sc|species__)")
+p9 <- p9 + labs(x = "Wingspan", y = "Offset") + geom_point(data = sscs, aes(x = wingspan_sc, y = q90_value), alpha=0.05)
+p9 <- p9 + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+p9 <- rmPlotAxis(p9,rm_y=TRUE,rm_x=TRUE)
+
+ggarrange(p7,p8,p9,p4,p5,p6,p1,p2,p3, ncol = 3, nrow = 3)
+
+```
+
+## Figure 4. Activity duration is the most phylogenetically conserved activity trait
+
+```{r}
+
+sscs_sp <- sscs %>% group_by(species) %>% summarize(duration=mean(duration),median=mean(median_value),
+                                                onset=mean(q10_value),offset=mean(q90_value),wingspan=mean(wingspan),n=n()) %>% filter(n > 15) %>% mutate(clade=species)
+
+assessTraitsOnTree(sscs_sp, trait_colname = "duration",tree=tree)
+assessTraitsOnTree(sscs_sp, trait_colname = "onset",tree=tree)
+assessTraitsOnTree(sscs_sp, trait_colname = "median",tree=tree)
+assessTraitsOnTree(sscs_sp, trait_colname = "offset",tree=tree)
+```
+
+Wingspan and duration are phylogenetically correlated
+
+```{r}
+
+cor.test(sscs_sp$duration,sscs_sp$wingspan)
+assessTraitsOnTree(sscs_sp, trait_colname = "duration",trait_colname2="wingspan",tree=tree)
+
+```
+
+## Figure 5. Visualizing SSCs
+
+```{r}
+
+```
