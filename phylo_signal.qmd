@@ -1,0 +1,119 @@
+---
+title: "Phylogenetic Signal"
+---
+
+Compute phylogenetic signal: Blomberg's K and Pagel's L
+
+```{r}
+
+computePhyloSignal <- function(data, response, tree, reps = 1000) {
+  # Load necessary libraries
+  library(phylosignal)
+  library(ape)
+  library(dplyr)
+  
+  # Ensure the response variable exists in the dataset
+  if (!response %in% names(data)) {
+    stop("Response variable not found in dataset.")
+  }
+  
+  # Aggregate the response variable by species
+  trait_data <- data %>%
+    group_by(species) %>%
+    summarize(trait_value = mean(.data[[response]], na.rm = TRUE), .groups = "drop")
+  
+  # Ensure species names match the tree's tip labels
+  trait_values <- setNames(trait_data$trait_value, trait_data$species)
+  
+  # Reorder trait_values to match the order of species in the tree
+  trait_values <- trait_values[tree$tip.label]
+  
+  # Check for missing values in trait_values (if a species in tree is missing from data)
+  if (any(is.na(trait_values))) {
+    warning("Some species in the tree have no corresponding trait value.")
+  }
+  
+  # Compute phylogenetic variance-covariance matrix
+  vcv_matrix <- vcv(tree)
+  
+  # Compute Blomberg's K and perform permutation test
+  k_result <- kTest(trait_values, vcv_matrix, reps = reps)
+  
+  # Compute Pagel's Lambda and significance test
+  lambda_result <- lambdaTest(trait_values, vcv_matrix)
+  
+  # Return results as a list
+  return(list(
+    Blomberg_K = k_result,
+    Pagel_Lambda = lambda_result
+  ))
+}
+
+result <- computePhyloSignal(sscs, "duration", tree)
+# Print results
+print(result)
+
+result <- computePhyloSignal(sscs, "q10_value", tree)
+# Print results
+print(result)
+
+result <- computePhyloSignal(sscs, "median_value", tree)
+# Print results
+print(result)
+
+result <- computePhyloSignal(sscs, "q90_value", tree)
+# Print results
+print(result)
+```
+
+Compute phylo signal using residuals of models - models come from modeling_and_model_selection.qmd
+
+```{r}
+
+computePhyloSignalResids <- function(model, tree, reps = 1000) {
+  # Load necessary libraries
+  library(phylosignal)
+  library(ape)
+  library(dplyr)
+  library(brms)  # Ensure brms is loaded for residuals extraction
+  
+  # Compute Pearson residuals from the model
+  resids <- residuals(model, type = "pearson")[,1]  # Extract residuals
+  
+  # Ensure the residuals are named by species
+  resid_values <- setNames(resids, model$data$species)  # Assign names using species column
+  
+  # Aggregate residuals by species (taking mean if multiple rows per species)
+  resid_values <- tapply(resid_values, names(resid_values), mean, na.rm = TRUE)  # Mean per species
+  
+  # Reorder residuals to match the tree's tip labels
+  resid_values <- resid_values[tree$tip.label]
+  
+  # Check for missing values in residuals
+  if (any(is.na(resid_values))) {
+    warning("Some species in the tree have no corresponding residuals.")
+  }
+  
+  # Compute phylogenetic variance-covariance matrix
+  vcv_matrix <- vcv(tree)  # Required for kTest()
+  
+  # Compute Blomberg's K and perform permutation test
+  k_result <- kTest(resid_values, vcv_matrix, reps = reps)
+  
+  # Compute Pagel's Lambda and significance test
+  lambda_result <- lambdaTest(resid_values, vcv_matrix)
+  
+  # Return results as a list
+  return(list(
+    Blomberg_K = k_result,
+    Pagel_Lambda = lambda_result
+  ))
+}
+
+# Example usage
+result_resids <- computePhyloSignalResids(m_off, tree)
+
+# Print results
+print(result_resids)
+
+```
