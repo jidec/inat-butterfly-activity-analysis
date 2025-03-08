@@ -14,7 +14,7 @@ library(ggplot2)
 library(tidyr)
 library(purrr)
 
-obs_data <- readRDS("_targets/objects/obs_data_tiled")
+obs_data <- readRDS("_targets/objects/obs_gridded")
 obs_data <- subset(obs_data, select = -c(geometry))
 obs_data <- filter(obs_data, local_hour >= 7)
 obs_data <- filter(obs_data, local_hour <= 20)

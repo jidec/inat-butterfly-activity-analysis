@@ -7,6 +7,8 @@ title: "Data Prep"
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
+See the \_targets.R file for exact code run to produce the results
+
 Load packages including **colorEvoHelpers**, a package containing personal helpers, and **inatDailyActivity** containing the bias-adjustment pipeline
 
 ```{r}

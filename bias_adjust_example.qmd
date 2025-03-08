@@ -182,3 +182,137 @@ sscs %>%
        x = "Hour",
        y = "Common Name")
 ```
+
+Putting it in a function
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(mgcv)
+
+plot_bias_adjusted_density <- function(data,
+                                       species,
+                                       season,
+                                       cell,
+                                       year,
+                                       min_hour = 7,
+                                       max_hour = 20) {
+  # 1. Filter data to the requested subset
+  data_filtered <- data %>%
+    filter(
+      species == !!species,
+      season == !!season,
+      cell == !!cell,
+      year == !!year,
+      local_hour >= min_hour,
+      local_hour <= max_hour
+    )
+  
+  # If there's insufficient data after filtering, exit early
+  if (nrow(data_filtered) < 1) {
+    stop("No data found for the specified filters.")
+  }
+  
+  # 2. Build the sampling-effort model (GAM)
+  sampling_effort <- data_filtered %>%
+    group_by(local_hour) %>%
+    summarise(n_obs = n(), .groups = "drop")
+  
+  m <- mgcv::gam(n_obs ~ s(local_hour),
+                 data = sampling_effort,
+                 family = "poisson")
+  
+  # 3. Predict effort across the hour range
+  pred_df <- data.frame(local_hour = min_hour:max_hour)
+  pred    <- predict(m, pred_df, type = "response")
+  gam_df  <- data.frame(local_hour = pred_df$local_hour, effort = pred)
+  
+  # 4. Calculate inverse effort
+  data_adjusted <- data_filtered %>%
+    left_join(gam_df, by = "local_hour") %>%
+    mutate(inverse_effort = 1 / effort)
+  
+  # 5. Resample using inverse effort
+  data_subsampled <- data_adjusted %>%
+    sample_n(size = nrow(.), replace = TRUE, weight = inverse_effort)
+  
+  # 6. Compute quantiles for raw data vs. adjusted data
+  raw_quantiles <- quantile(data_filtered$local_hour, probs = c(0.1, 0.5, 0.9))
+  adj_quantiles <- quantile(data_subsampled$local_hour, probs = c(0.1, 0.5, 0.9))
+  
+  # 7. Create the two plots: raw vs. adjusted
+  
+  # Raw
+  p_raw <- ggplot(data_filtered, aes(x = local_hour)) +
+    geom_density(color = "black", fill = "gray80") +
+    # Add vertical lines at 10th, 50th, 90th quantiles
+    # Add vertical lines at 10th, 50th, 90th quantiles, with different colors
+    geom_vline(xintercept = raw_quantiles[1], linetype = "dashed", color = "red",size=1.2) + 
+    geom_vline(xintercept = raw_quantiles[2], linetype = "dashed", color = "orange", size=1.2) +
+    geom_vline(xintercept = raw_quantiles[3], linetype = "dashed", color = "green", size=1.2) +
+    theme_minimal() +
+    labs(
+      title = paste("Raw Activity Curves:", species),
+      subtitle = paste("Cell =", cell,
+                       "| Season =", season,
+                       "| Year =", year),
+      x = "Local Hour",
+      y = "Count"
+    )
+  
+  # Adjusted
+  p_adjusted <- ggplot(data_subsampled, aes(x = local_hour)) +
+    geom_density(color = "black", fill = "steelblue") +
+    # Add vertical lines at 10th, 50th, 90th quantiles
+    geom_vline(xintercept = adj_quantiles[1], linetype = "dotted") + 
+    geom_vline(xintercept = adj_quantiles[2], linetype = "dotted") +
+    geom_vline(xintercept = adj_quantiles[3], linetype = "dotted") +
+    theme_minimal() +
+    labs(
+      title = paste("Bias-Adjusted Activity Curves:", species),
+      subtitle = paste("Cell =", cell,
+                       "| Season =", season,
+                       "| Year =", year),
+      x = "Local Hour",
+      y = "Count"
+    )
+  
+  # 8. Return or print the two plots (unlabeled dotted lines at 10th, 50th, 90th quantiles)
+  list(raw_plot = p_raw, adjusted_plot = p_adjusted)
+}
+
+
+# Suppose your full dataset is in obs_data (similar to the original code),
+# and you've already filtered times to 7–20 in that dataset or want the function to do so.
+
+
+list_combos_for_species <- function(data, species_name) {
+  data %>%
+    filter(species == species_name) %>%
+    group_by(season, cell, year) %>%
+    summarize(
+      n_observations = n(),
+      cell_lat = mean(cell_lat),
+      cell_long = mean(cell_lon),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(n_observations))
+}
+
+combos <- list_combos_for_species(obs_data, "Papilio glaucus")
+
+# You can call:
+results <- plot_bias_adjusted_density(
+  data    = obs_data,
+  species = "Papilio glaucus",
+  season  = "2",          # e.g. "1" for Winter in your scheme
+  cell    = 151,          # e.g. the "Washington DC" cell
+  year    = 2021          # whichever year column you have in your dataset
+)
+
+test <- obs_data %>% group_by(species) %>% summarize(n=n())
+# 'results' is a list with 2 ggplot objects, which you can display:
+results$raw_plot
+results$adjusted_plot
+```

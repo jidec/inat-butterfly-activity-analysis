@@ -1,5 +1,5 @@
 ---
-title: "larva spot checks"
+title: "Larva Spot Checks"
 execute:
   eval: false
 ---

@@ -2,7 +2,7 @@
 title: "Extra: Observer Time Vetting"
 ---
 
-So far the ones I've looked at are real, just superobservers that tend to prefer blacklighting and evenings
+So far the hourly outliers I've looked at are real, just superobservers that tend to prefer blacklighting and evenings
 
 ```{r}
 library(dplyr)
