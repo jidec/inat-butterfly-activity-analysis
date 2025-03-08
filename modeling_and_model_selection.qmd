@@ -1,0 +1,353 @@
+---
+title: "Modeling & Model Selection"
+---
+
+Finalize data generated using the targets pipeline
+
+```{r}
+
+library(colorEvoHelpers)
+library(ape)
+library(brms)
+library(sjPlot)
+library(splines)
+
+sscs <- readRDS("_targets/objects/sscs2")
+sscs$duration <- sscs$q90_value - sscs$q10_value
+sscs$clade <- sscs$species
+
+tree <- loadFixTree(tree_location="data/raw/bf_species_tree.txt",remove_first_split = TRUE)
+
+sscs_and_tree <- trimDfToTree(sscs,tree)
+
+sscs <- sscs_and_tree[[1]]
+tree <- sscs_and_tree[[2]]
+tree_cov <- ape::vcv.phylo(tree)
+
+data2 <- list(tree_cov = tree_cov)
+
+myBRMS <- function(formula){
+  m <- brm(
+        formula = formula,
+        data = sscs, #_filtered #for_tree
+        data2 = data2,
+        chains = 3,
+        cores = 3,
+        iter = 3000,
+        warmup = 1000
+    )
+  m <- add_criterion(m,  criterion="loo")
+  return(m)
+}
+```
+
+## Standard models vs. temp \* wingspan interaction vs. spline on temp
+
+```{r}
+
+# duration
+m <- myBRMS("duration ~ temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m1.rds")
+
+m <- myBRMS("duration ~ temp_sc * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m2.rds")
+
+# q10
+m <- myBRMS("q10_value ~ temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m3.rds")
+
+m <- myBRMS("q10_value ~ temp_sc * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m4.rds")
+
+# median
+m <- myBRMS("median_value ~ temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m5.rds")
+m <- myBRMS("median_value ~ temp_sc * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m6.rds")
+
+# q90
+m <- myBRMS("q90_value ~ temp_sc + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m7.rds")
+
+m <- myBRMS("q90_value ~ temp_sc * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m8.rds")
+
+
+# temperature splines
+# duration
+m <- myBRMS("duration ~ ns(temp_sc,2) + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m9.rds")
+
+# q10
+m <- myBRMS("q10_value ~ ns(temp_sc,2) + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m10.rds")
+
+# median
+m <- myBRMS("median_value ~ ns(temp_sc,2) + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m11.rds")
+
+# q90
+m <- myBRMS("q90_value ~ ns(temp_sc,2) + wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m12.rds")
+
+# both additions
+# duration
+m <- myBRMS("duration ~ ns(temp_sc,2) * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m13.rds")
+
+# q10
+m <- myBRMS("q10_value ~ ns(temp_sc,2) * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m14.rds")
+
+# median - bulk ess issues
+m <- myBRMS("median_value ~ ns(temp_sc,2) * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m15.rds")
+
+# q90
+m <- myBRMS("q90_value ~ ns(temp_sc,2) * wingspan_sc + daylength_sc + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m16.rds")
+
+# sampling effort
+# duration
+m <- myBRMS("duration ~ temp_sc + wingspan_sc + daylength_sc + n_obs + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m17.rds")
+
+# q10
+m <- myBRMS("q10_value ~ temp_sc + wingspan_sc + daylength_sc + n_obs + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m18.rds")
+
+# median
+m <- myBRMS("median_value ~ temp_sc + wingspan_sc + daylength_sc + n_obs + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m19.rds")
+
+# q90
+m <- myBRMS("q90_value ~ temp_sc + wingspan_sc + daylength_sc + n_obs + (1|cell) + (0+temp_sc|cell) + (1|gr(species, cov = tree_cov)) + (0 + temp_sc|gr(species, cov = tree_cov))")
+saveRDS(m,file="models/m20.rds")
+```
+
+Read in models
+
+```{r}
+
+m1 <- readRDS("models/m1.rds")
+m2 <- readRDS("models/m2.rds")
+m3 <- readRDS("models/m3.rds")
+m4 <- readRDS("models/m4.rds")
+m5 <- readRDS("models/m5.rds")
+m6 <- readRDS("models/m6.rds")
+m7 <- readRDS("models/m7.rds")
+m8 <- readRDS("models/m8.rds")
+m9 <- readRDS("models/m9.rds")
+m10 <- readRDS("models/m10.rds")
+m11 <- readRDS("models/m11.rds")
+m12 <- readRDS("models/m12.rds")
+m13 <- readRDS("models/m13.rds")
+m14 <- readRDS("models/m14.rds")
+m15 <- readRDS("models/m15.rds")
+m16 <- readRDS("models/m16.rds")
+m17 <- readRDS("models/m17.rds")
+m18<- readRDS("models/m18.rds")
+m19 <- readRDS("models/m19.rds")
+m20 <- readRDS("models/m20.rds")
+```
+
+## Assess models
+
+```{r}
+
+myModelChecks <- function(model_list) {
+  for (i in seq_along(model_list)) {
+    mod <- model_list[[i]]
+    
+    # 1) Extract posterior summary (includes Rhat and ESS)
+    ps <- as.data.frame(posterior_summary(mod))
+    
+    # 2) Check Rhat < 1.01
+    rhat_ok <- all(ps$Rhat < 1.01, na.rm = TRUE)
+    
+    # 3) Check Bulk_ESS > 400
+    ess_ok <- all(ps$Bulk_ESS > 400, na.rm = TRUE)
+    
+    # 4) Check for divergent transitions:
+    #    The nuts_params() function in brms returns a data frame of sampler diagnostics.
+    #    'Parameter == "divergent__"' indicates divergences in each iteration.
+    np <- nuts_params(mod)
+    # If ANY 'Value' in "divergent__" is 1, we have divergences
+    div_ok <- all(subset(np, Parameter == "divergent__")$Value == 0)
+    
+    # Collect any failed checks
+    fail_reasons <- character(0)
+    if (!rhat_ok) {
+      fail_reasons <- c(fail_reasons, "Some Rhat >= 1.01")
+    }
+    if (!ess_ok) {
+      fail_reasons <- c(fail_reasons, "Some Bulk_ESS <= 400")
+    }
+    if (!div_ok) {
+      fail_reasons <- c(fail_reasons, "Divergent transitions detected")
+    }
+    
+    # If this model failed any checks, print a message
+    if (length(fail_reasons) > 0) {
+      cat(sprintf(
+        "\nModel %d failed:\n  - %s\n", 
+        i, 
+        paste0(fail_reasons, collapse = "\n  - ")
+      ))
+    } else {
+      cat(sprintf("\nModel %d passed all checks.\n", i))
+    }
+  }
+}
+
+m_list <- list(m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16)
+myModelChecks(m_list)
+```
+
+## Compare models
+
+```{r}
+
+library(brms)
+  
+loo_compare(m1,m2,m9,m13,m17) # m1 is best - no spline
+loo_compare(m3,m4,m10,m14,m18) # m3 is best - no spline
+loo_compare(m5,m6,m11,m15,m19) # m11 is best - spline
+loo_compare(m7,m8,m12,m16) # m12 is best - spline
+
+m_dur <- m1
+m_on <- m3
+m_med <- m11
+m_off <- m12 
+
+saveRDS(m_dur,file="models/m_dur.rds")
+saveRDS(m_on,file="models/m_on.rds")
+saveRDS(m_med,file="models/m_med.rds")
+saveRDS(m_off,file="models/m_off.rds")
+```
+
+## Assess selected models with pp_check
+
+```{r}
+
+pp_check(m1)
+pp_check(m3)
+pp_check(m11)
+pp_check(m12)
+```
+
+Estimated effects
+
+```{r}
+
+summary(m_dur)
+summary(m_on)
+summary(m_med)
+summary(m_off)
+```
+
+Blomberg's K on resids
+
+```{r}
+
+library(phytools)
+
+resids <- residuals(m_dur, type = "pearson")[,1]
+
+names(resids) <- sscs$species 
+
+# Blomberg's K:
+K_result <- phylosig(tree, resids, method = "K")
+print(K_result$K)
+
+```
+
+```{r}
+
+obs <- readRDS("_targets/objects/obs_gridded")
+obs <- subset(obs, select = -c(geometry))
+obs <- filter(obs, local_hour >= 6)
+obs <- filter(obs, local_hour <= 21)
+
+test <- obs %>%
+      group_by(season, cell, species, year) %>%
+      summarise(raw_obs=list(local_hour),
+                n_obs=n(),
+                lat=mean(cell_lat),
+                lon=mean(cell_lon))
+
+v <- as.vector(unlist(test[2,4]))
+
+row_n <- 2
+myActivityCurvePlot <- function(row_n){
+  v <- as.vector(unlist(test[row_n,4]))
+  df <- data.frame(v)
+  ggplot(df, aes(x = v)) +
+    geom_density(fill = "grey", alpha = 0.5) +
+    labs(title = "Density Plot", x = "Value", y = "Density") +
+    xlim(8,20) +
+    theme_minimal()
+}
+
+myActivityCurvePlot(36125)
+```
+
+```{r}
+
+library(brms)
+library(broom.mixed)
+library(dplyr)
+
+# Fit a brms model (assuming you already have one)
+# model <- brm(...)
+
+# Extract tidy summary of estimates
+summary_table <- tidy(m_off, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>%
+  select(term, estimate, std.error, conf.low, conf.high)
+
+# Rename columns to match your image format
+colnames(summary_table) <- c("Parameter", "Estimate", "Est.Error", "l-95% CI", "u-95% CI")
+
+# Display the table
+print(summary_table)
+```
+
+```{r}
+
+summary_data <- summary(m_med)
+
+# Extract fixed effect estimates
+fixed_effects <- as.data.frame(summary_data$fixed)
+fixed_effects$Parameter <- rownames(fixed_effects)
+
+# Extract additional diagnostics
+rhat_values <- summary_data$Rhat[1:length(fixed_effects$Parameter)]
+ess_bulk <- summary_data$ess_bulk[1:length(fixed_effects$Parameter)]
+ess_tail <- summary_data$ess_tail[1:length(fixed_effects$Parameter)]
+
+# Combine into a final table
+final_table <- fixed_effects %>%
+  mutate(Rhat = rhat_values, Bulk_ESS = ess_bulk, Tail_ESS = ess_tail) %>%
+  select(Parameter, Estimate = Estimate, `Est.Error` = Est.Error, 
+         `l-95% CI` = `l-95% CI`, `u-95% CI` = `u-95% CI`, 
+         Rhat, Bulk_ESS, Tail_ESS)
+```
+
+Check VIFS using non-phylogenetic LMMs
+
+```{r}
+
+library(colorEvoHelpers)
+
+# VIFS: low without cell, high 7 with
+m <- getPlotLM(sscs,model_type="lmer",response="duration", formula="temp + wingspan + daylength + (1|cell) + (1|species)")
+vif(m)
+
+# VIFS: low without cell, high with
+m <- getPlotLM(sscs,model_type="lmer",response="q10_value", formula="temp + wingspan + daylength + (1|cell) + (1|season) + (1|species)")
+vif(m)
+
+# VIFS: low without cell, high with
+m <- getPlotLM(sscs,model_type="lmer",response="median_value", formula="temp + wingspan + daylength + (1|cell) + (1|season) + (1|species)")
+vif(m)
+```
