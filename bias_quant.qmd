@@ -1,0 +1,597 @@
+---
+title: "Quantification of Observer Bias and Correction Effectiveness"
+format: html
+execute:
+  warning: false
+  message: false
+---
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+library(mgcv)
+library(patchwork)
+library(viridis)
+
+# Load data
+obs_data <- readRDS("_targets/objects/obs_gridded")
+obs_data <- subset(obs_data, select = -c(geometry))
+obs_data <- filter(obs_data, local_hour >= 8, local_hour <= 20)
+```
+
+```{r}
+
+# Calculate overall sampling effort by hour
+hourly_bias <- obs_data %>%
+  group_by(local_hour) %>%
+  summarise(
+    n_obs = n(),
+    prop_obs = n() / nrow(obs_data)
+  ) %>%
+  mutate(
+    expected_uniform = 1/13,  # 13 hours from 8-20
+    bias_factor = prop_obs / expected_uniform
+  )
+
+# Peak observation time
+peak_hour <- hourly_bias$local_hour[which.max(hourly_bias$n_obs)]
+morning_bias <- mean(hourly_bias$bias_factor[hourly_bias$local_hour <= 11])
+afternoon_bias <- mean(hourly_bias$bias_factor[hourly_bias$local_hour >= 14])
+
+# Seasonal variation
+seasonal_bias <- obs_data %>%
+  group_by(season) %>%
+  summarise(
+    n_obs = n(),
+    prop_obs = n() / nrow(obs_data)
+  ) %>%
+  mutate(
+    expected_uniform = 0.25,
+    bias_factor = prop_obs / expected_uniform
+  )
+
+# Calculate coefficient of variation in hourly sampling
+hourly_cv_raw <- sd(hourly_bias$n_obs) / mean(hourly_bias$n_obs)
+
+cat("TEMPORAL BIAS SUMMARY:\n")
+cat("Peak observation hour:", peak_hour, ":00\n")
+cat("Morning (8-11am) bias factor:", round(morning_bias, 2), 
+    "(", round(1/morning_bias, 1), "x undersampled)\n")
+cat("Afternoon (2-8pm) bias factor:", round(afternoon_bias, 2),
+    "(", round(afternoon_bias, 1), "x oversampled)\n")
+cat("Coefficient of variation in hourly sampling:", round(hourly_cv_raw, 2), "\n\n")
+
+cat("SEASONAL BIAS:\n")
+print(seasonal_bias)
+```
+
+```{r}
+
+# Calculate bias patterns by cell
+spatial_bias <- obs_data %>%
+  group_by(cell, local_hour) %>%
+  summarise(n_obs = n(), .groups = 'drop') %>%
+  group_by(cell) %>%
+  mutate(
+    total_cell_obs = sum(n_obs),
+    prop_hour = n_obs / total_cell_obs
+  ) %>%
+  summarise(
+    peak_hour = local_hour[which.max(n_obs)],
+    cv_hourly = sd(n_obs) / mean(n_obs),
+    total_obs = sum(n_obs),
+    .groups = 'drop'
+  )
+
+# Categorize cells by sampling intensity
+spatial_bias <- spatial_bias %>%
+  mutate(
+    sampling_category = case_when(
+      total_obs < 100 ~ "Low (<100)",
+      total_obs < 500 ~ "Medium (100-500)",
+      total_obs < 1000 ~ "High (500-1000)",
+      TRUE ~ "Very High (>1000)"
+    )
+  )
+
+bias_by_sampling <- spatial_bias %>%
+  group_by(sampling_category) %>%
+  summarise(
+    n_cells = n(),
+    mean_peak_hour = mean(peak_hour),
+    sd_peak_hour = sd(peak_hour),
+    mean_cv = mean(cv_hourly),
+    .groups = 'drop'
+  )
+
+cat("\nBIAS PATTERNS BY SAMPLING INTENSITY:\n")
+print(bias_by_sampling)
+```
+
+```{r}
+
+# Fit GAMs for bias correction
+sampling_effort <- obs_data %>%
+  group_by(cell, season, local_hour) %>%
+  summarise(n_obs = n(), .groups = 'drop')
+
+# Fit models (using your existing approach)
+models <- sampling_effort %>%
+  distinct(season, cell) %>%
+  group_by(season, cell) %>%
+  summarize(
+    model = list(mgcv::gam(n_obs ~ s(local_hour), 
+                           data = filter(sampling_effort, season == season, cell == cell), 
+                           family = "poisson")),
+    .groups = 'drop'
+  )
+
+gam_predictions <- sampling_effort %>%
+  distinct(season, cell, local_hour) %>%
+  left_join(models, by = c("season", "cell")) %>%
+  rowwise() %>%
+  mutate(effort = predict(model, newdata = tibble(local_hour = local_hour), 
+                          type = "response")) %>%
+  select(-model)
+
+obs_data <- obs_data %>%
+  left_join(gam_predictions, by = c("local_hour", "season", "cell")) %>%
+  mutate(inverse_effort = 1/effort)
+```
+
+```{r}
+
+# Apply bootstrap correction
+my_bootstrap <- function(hours, inv_efforts, nbootstraps=50){
+    
+    bootstrap_medians <- numeric(nbootstraps)
+    bootstrap_q10s <- numeric(nbootstraps)
+    bootstrap_q90s <- numeric(nbootstraps)
+    
+    # Perform bootstrapping
+    for (i in 1:nbootstraps) {
+        sampled_hours <- sample(hours, replace=TRUE, size=length(hours), prob=inv_efforts)
+        bootstrap_medians[i] <- median(sampled_hours)
+        bootstrap_q10s[i] <- quantile(sampled_hours,0.1)
+        bootstrap_q90s[i] <- quantile(sampled_hours,0.9)
+    }
+
+    # Calculate the 5th percentile, median, and 95th percentile
+    median_lower <- quantile(bootstrap_medians, probs = 0.05)
+    median_value <- median(bootstrap_medians)
+    median_upper <- quantile(bootstrap_medians, probs = 0.95)
+    
+    q10_lower <- quantile(bootstrap_q10s, probs=0.05)
+    q10_value <- median(bootstrap_q10s)
+    q10_upper <- quantile(bootstrap_q10s, probs=0.95)
+    
+    q90_lower <- quantile(bootstrap_q90s, probs=0.05)
+    q90_value <- median(bootstrap_q90s)
+    q90_upper <- quantile(bootstrap_q90s, probs=0.95)
+    
+    # Return the results
+    return(list(median_lower = median_lower, median_value = median_value, median_upper = median_upper,
+                q10_lower = q10_lower, q10_value = q10_value, q10_upper = q10_upper,
+                q90_lower = q90_lower, q90_value = q90_value, q90_upper = q90_upper))
+}
+
+min_per_sscy <- 30
+sscy_comparison <- obs_data %>%
+  group_by(species, season, cell, year) %>%
+  filter(n() >= min_per_sscy) %>%
+  summarise(
+    n_obs = n(),
+    # Uncorrected metrics
+    unadj_median = median(local_hour),
+    unadj_q10 = quantile(local_hour, 0.1),
+    unadj_q90 = quantile(local_hour, 0.9),
+    unadj_duration = unadj_q90 - unadj_q10,
+    
+    # Apply bootstrap correction
+    bootstrap_results = list(my_bootstrap(local_hour, inverse_effort)),
+    .groups = 'drop'
+  ) %>%
+  unnest_wider(bootstrap_results) %>%
+  mutate(
+    adj_duration = q90_value - q10_value,
+    
+    # Calculate changes
+    median_shift = median_value - unadj_median,
+    duration_change = adj_duration - unadj_duration,
+    duration_pct_change = 100 * (adj_duration - unadj_duration) / unadj_duration
+  )
+
+# Summary statistics
+correction_summary <- sscy_comparison %>%
+  summarise(
+    mean_median_shift = mean(median_shift),
+    sd_median_shift = sd(median_shift),
+    mean_duration_change = mean(duration_change),
+    mean_duration_pct = mean(duration_pct_change),
+    
+    pct_earlier_peak = 100 * mean(median_shift < 0),
+    pct_longer_duration = 100 * mean(duration_change > 0)
+  )
+
+cat("\nCORRECTION IMPACT SUMMARY:\n")
+cat("Mean peak time shift:", round(correction_summary$mean_median_shift, 2), 
+    "hours (±", round(correction_summary$sd_median_shift, 2), "SD)\n")
+cat("Peaks shifted earlier:", round(correction_summary$pct_earlier_peak, 1), "%\n")
+cat("Mean duration change:", round(correction_summary$mean_duration_change, 2), "hours\n")
+cat("Mean duration % change:", round(correction_summary$mean_duration_pct, 1), "%\n")
+cat("Activities with longer duration after correction:", 
+    round(correction_summary$pct_longer_duration, 1), "%\n")
+```
+
+```{r}
+
+# Select representative examples
+# High bias urban cell
+urban_cell <- spatial_bias %>%
+  filter(sampling_category == "Very High (>1000)") %>%
+  slice_max(cv_hourly, n = 1) %>%
+  pull(cell)
+
+# Lower bias rural cell  
+rural_cell <- spatial_bias %>%
+  filter(sampling_category == "Medium (100-500)") %>%
+  slice_min(cv_hourly, n = 1) %>%
+  pull(cell)
+
+# Common species for examples
+example_species <- c("Pieris rapae", "Danaus plexippus", "Colias eurytheme")
+```
+
+```{r}
+
+# Panel A-B: Sampling effort by cell type
+effort_urban <- sampling_effort %>%
+  filter(cell == urban_cell, season == "3") %>%
+  left_join(gam_predictions, by = c("season", "cell", "local_hour"))
+
+effort_rural <- sampling_effort %>%
+  filter(cell == rural_cell, season == "3") %>%
+  left_join(gam_predictions, by = c("season", "cell", "local_hour"))
+
+p1 <- ggplot(effort_urban, aes(x = local_hour)) +
+  geom_col(aes(y = n_obs), fill = "gray70", alpha = 0.7) +
+  geom_line(aes(y = effort), color = "red", size = 1.5) +
+  labs(title = "A. High-bias urban cell", 
+       x = "Hour", y = "Number of observations") +
+  theme_minimal()
+
+p2 <- ggplot(effort_rural, aes(x = local_hour)) +
+  geom_col(aes(y = n_obs), fill = "gray70", alpha = 0.7) +
+  geom_line(aes(y = effort), color = "red", size = 1.5) +
+  labs(title = "B. Lower-bias rural cell",
+       x = "Hour", y = "Number of observations") +
+  theme_minimal()
+
+p1 + p2
+```
+
+```{r}
+
+# Create before/after comparison for example species
+species_comparison_plots <- list()
+
+for(sp in example_species) {
+  sp_data <- obs_data %>%
+    filter(species == sp, season == "3") %>%
+    group_by(local_hour) %>%
+    summarise(
+      raw_count = n(),
+      weighted_count = sum(inverse_effort),
+      .groups = 'drop'
+    ) %>%
+    mutate(
+      raw_prop = raw_count / sum(raw_count),
+      weighted_prop = weighted_count / sum(weighted_count)
+    )
+  
+  p <- sp_data %>%
+    pivot_longer(cols = c(raw_prop, weighted_prop), 
+                 names_to = "type", values_to = "proportion") %>%
+    mutate(type = ifelse(type == "raw_prop", "Uncorrected", "Bias-corrected")) %>%
+    ggplot(aes(x = local_hour, y = proportion, color = type)) +
+    geom_line(size = 1.2) +
+    geom_point(size = 2) +
+    scale_color_manual(values = c("Uncorrected" = "gray50", 
+                                  "Bias-corrected" = "darkblue")) +
+    labs(title = sp, x = "Hour", y = "Proportion of activity") +
+    theme_minimal() +
+    theme(legend.title = element_blank())
+  
+  species_comparison_plots[[sp]] <- p
+}
+
+wrap_plots(species_comparison_plots, ncol = 2)
+```
+
+```{r}
+
+p3 <- ggplot(sscy_comparison, aes(x = median_shift)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "C. Distribution of peak time shifts",
+       x = "Hours shifted (negative = earlier)", 
+       y = "Number of SSCY combinations") +
+  theme_minimal()
+
+p4 <- ggplot(sscy_comparison, aes(x = duration_pct_change)) +
+  geom_histogram(bins = 30, fill = "darkgreen", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "D. Distribution of duration changes",
+       x = "Percent change in activity duration", 
+       y = "Number of SSCY combinations") +
+  theme_minimal()
+
+p3 + p4
+```
+
+```{r}
+
+# Calculate both corrected and uncorrected metrics for all SSCY combinations
+comprehensive_comparison <- obs_data %>%
+  group_by(species, season, cell, year) %>%
+  filter(n() >= min_per_sscy) %>%
+  summarise(
+    n_obs = n(),
+    
+    # Uncorrected metrics
+    unadj_q10 = quantile(local_hour, 0.1),
+    unadj_median = median(local_hour),
+    unadj_q90 = quantile(local_hour, 0.9),
+    unadj_duration = unadj_q90 - unadj_q10,
+    
+    # Apply bootstrap correction for adjusted metrics
+    bootstrap_results = list(my_bootstrap(local_hour, inverse_effort, nbootstraps = 50)),
+    .groups = 'drop'
+  ) %>%
+  unnest_wider(bootstrap_results) %>%
+  rename(
+    adj_q10 = q10_value,
+    adj_median = median_value,
+    adj_q90 = q90_value
+  ) %>%
+  mutate(
+    # Calculate adjusted duration
+    adj_duration = adj_q90 - adj_q10,
+    
+    # Calculate absolute changes
+    onset_shift = adj_q10 - unadj_q10,
+    peak_shift = adj_median - unadj_median,
+    offset_shift = adj_q90 - unadj_q90,
+    duration_change = adj_duration - unadj_duration,
+    
+    # Calculate percent changes
+    onset_pct_change = 100 * onset_shift / unadj_q10,
+    offset_pct_change = 100 * offset_shift / unadj_q90,
+    duration_pct_change = 100 * duration_change / unadj_duration
+  )
+
+# Overall summary statistics
+overall_summary <- comprehensive_comparison %>%
+  summarise(
+    n_sscy = n(),
+    
+    # Onset changes
+    mean_onset_shift = mean(onset_shift, na.rm = TRUE),
+    sd_onset_shift = sd(onset_shift, na.rm = TRUE),
+    median_onset_shift = median(onset_shift, na.rm = TRUE),
+    pct_onset_earlier = 100 * mean(onset_shift < 0, na.rm = TRUE),
+    
+    # Peak changes
+    mean_peak_shift = mean(peak_shift, na.rm = TRUE),
+    sd_peak_shift = sd(peak_shift, na.rm = TRUE),
+    median_peak_shift = median(peak_shift, na.rm = TRUE),
+    pct_peak_earlier = 100 * mean(peak_shift < 0, na.rm = TRUE),
+    
+    # Offset changes
+    mean_offset_shift = mean(offset_shift, na.rm = TRUE),
+    sd_offset_shift = sd(offset_shift, na.rm = TRUE),
+    median_offset_shift = median(offset_shift, na.rm = TRUE),
+    pct_offset_later = 100 * mean(offset_shift > 0, na.rm = TRUE),
+    
+    # Duration changes
+    mean_duration_change = mean(duration_change, na.rm = TRUE),
+    sd_duration_change = sd(duration_change, na.rm = TRUE),
+    median_duration_change = median(duration_change, na.rm = TRUE),
+    mean_duration_pct_change = mean(duration_pct_change, na.rm = TRUE),
+    pct_duration_increased = 100 * mean(duration_change > 0, na.rm = TRUE)
+  )
+
+cat(strrep("=", 60), "\n")
+cat("COMPREHENSIVE BIAS CORRECTION IMPACT ANALYSIS\n")
+cat(strrep("=", 60), "\n\n")
+
+cat("Sample size:", overall_summary$n_sscy, "SSCY combinations\n\n")
+
+cat("ACTIVITY ONSET (10th percentile):\n")
+cat("  Mean shift:", sprintf("%.2f", overall_summary$mean_onset_shift), 
+    "hours (SD:", sprintf("%.2f", overall_summary$sd_onset_shift), ")\n")
+cat("  Median shift:", sprintf("%.2f", overall_summary$median_onset_shift), "hours\n")
+cat("  Shifted earlier:", sprintf("%.1f%%", overall_summary$pct_onset_earlier), "of cases\n\n")
+
+cat("PEAK ACTIVITY (median):\n")
+cat("  Mean shift:", sprintf("%.2f", overall_summary$mean_peak_shift), 
+    "hours (SD:", sprintf("%.2f", overall_summary$sd_peak_shift), ")\n")
+cat("  Median shift:", sprintf("%.2f", overall_summary$median_peak_shift), "hours\n")
+cat("  Shifted earlier:", sprintf("%.1f%%", overall_summary$pct_peak_earlier), "of cases\n\n")
+
+cat("ACTIVITY OFFSET (90th percentile):\n")
+cat("  Mean shift:", sprintf("%.2f", overall_summary$mean_offset_shift), 
+    "hours (SD:", sprintf("%.2f", overall_summary$sd_offset_shift), ")\n")
+cat("  Median shift:", sprintf("%.2f", overall_summary$median_offset_shift), "hours\n")
+cat("  Shifted later:", sprintf("%.1f%%", overall_summary$pct_offset_later), "of cases\n\n")
+
+cat("ACTIVITY DURATION (90th - 10th percentile):\n")
+cat("  Mean change:", sprintf("%.2f", overall_summary$mean_duration_change), 
+    "hours (SD:", sprintf("%.2f", overall_summary$sd_duration_change), ")\n")
+cat("  Median change:", sprintf("%.2f", overall_summary$median_duration_change), "hours\n")
+cat("  Mean percent change:", sprintf("%.1f%%", overall_summary$mean_duration_pct_change), "\n")
+cat("  Increased duration:", sprintf("%.1f%%", overall_summary$pct_duration_increased), "of cases\n\n")
+
+# Break down by season
+seasonal_summary <- comprehensive_comparison %>%
+  group_by(season) %>%
+  summarise(
+    n = n(),
+    mean_onset_shift = mean(onset_shift, na.rm = TRUE),
+    mean_peak_shift = mean(peak_shift, na.rm = TRUE),
+    mean_offset_shift = mean(offset_shift, na.rm = TRUE),
+    mean_duration_change = mean(duration_change, na.rm = TRUE),
+    mean_duration_pct = mean(duration_pct_change, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(season)
+
+cat(strrep("=", 60), "\n")
+cat("SEASONAL BREAKDOWN OF CORRECTIONS:\n")
+cat(strrep("=", 60), "\n")
+print(seasonal_summary, n = Inf)
+
+# Identify extreme corrections (top 5% most affected)
+extreme_corrections <- comprehensive_comparison %>%
+  mutate(
+    total_shift = abs(onset_shift) + abs(peak_shift) + abs(offset_shift)
+  ) %>%
+  slice_max(total_shift, prop = 0.05) %>%
+  summarise(
+    n_extreme = n(),
+    mean_onset_shift = mean(onset_shift),
+    mean_peak_shift = mean(peak_shift),
+    mean_offset_shift = mean(offset_shift),
+    mean_duration_change = mean(duration_change)
+  )
+
+cat("\n", strrep("=", 60), "\n")
+cat("EXTREME CASES (Top 5% most corrected):\n")
+cat(strrep("=", 60), "\n")
+cat("Number of cases:", extreme_corrections$n_extreme, "\n")
+cat("Mean onset shift:", sprintf("%.2f", extreme_corrections$mean_onset_shift), "hours\n")
+cat("Mean peak shift:", sprintf("%.2f", extreme_corrections$mean_peak_shift), "hours\n")
+cat("Mean offset shift:", sprintf("%.2f", extreme_corrections$mean_offset_shift), "hours\n")
+cat("Mean duration change:", sprintf("%.2f", extreme_corrections$mean_duration_change), "hours\n")
+
+# Statistical tests for significance of corrections
+onset_test <- t.test(comprehensive_comparison$onset_shift)
+peak_test <- t.test(comprehensive_comparison$peak_shift)
+offset_test <- t.test(comprehensive_comparison$offset_shift)
+duration_test <- t.test(comprehensive_comparison$duration_change)
+
+cat("\n", strrep("=", 60), "\n")
+cat("STATISTICAL SIGNIFICANCE OF CORRECTIONS:\n")
+cat(strrep("=", 60), "\n")
+cat("Onset shift t-test: t =", sprintf("%.2f", onset_test$statistic), 
+    ", p =", format.pval(onset_test$p.value, digits = 3), "\n")
+cat("Peak shift t-test: t =", sprintf("%.2f", peak_test$statistic), 
+    ", p =", format.pval(peak_test$p.value, digits = 3), "\n")
+cat("Offset shift t-test: t =", sprintf("%.2f", offset_test$statistic), 
+    ", p =", format.pval(offset_test$p.value, digits = 3), "\n")
+cat("Duration change t-test: t =", sprintf("%.2f", duration_test$statistic), 
+    ", p =", format.pval(duration_test$p.value, digits = 3), "\n")
+```
+
+```{r}
+
+# Create comprehensive visualization
+p_onset <- ggplot(comprehensive_comparison, aes(x = onset_shift)) +
+  geom_histogram(bins = 40, fill = "coral", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$onset_shift), 
+             color = "red", size = 1) +
+  labs(title = "A. Onset time shifts",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$onset_shift), 2), "hours"),
+       x = "Hours shifted (negative = earlier)", 
+       y = "Count") +
+  theme_minimal()
+
+p_offset <- ggplot(comprehensive_comparison, aes(x = offset_shift)) +
+  geom_histogram(bins = 40, fill = "skyblue", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$offset_shift), 
+             color = "blue", size = 1) +
+  labs(title = "B. Offset time shifts",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$offset_shift), 2), "hours"),
+       x = "Hours shifted (positive = later)", 
+       y = "Count") +
+  theme_minimal()
+
+p_duration <- ggplot(comprehensive_comparison, aes(x = duration_change)) +
+  geom_histogram(bins = 40, fill = "lightgreen", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$duration_change), 
+             color = "darkgreen", size = 1) +
+  labs(title = "C. Duration changes",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$duration_change), 2), "hours"),
+       x = "Hours change (positive = longer)", 
+       y = "Count") +
+  theme_minimal()
+
+p_duration_pct <- ggplot(comprehensive_comparison, aes(x = duration_pct_change)) +
+  geom_histogram(bins = 40, fill = "purple", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$duration_pct_change, na.rm = TRUE), 
+             color = "darkviolet", size = 1) +
+  labs(title = "D. Duration percent changes",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$duration_pct_change, na.rm = TRUE), 1), "%"),
+       x = "Percent change", 
+       y = "Count") +
+  theme_minimal()
+
+(p_onset + p_offset) / (p_duration + p_duration_pct)
+```
+
+```{r}
+
+# Create comprehensive visualization
+p_onset <- ggplot(comprehensive_comparison, aes(x = onset_shift)) +
+  geom_histogram(bins = 40, fill = "coral", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$onset_shift), 
+             color = "red", size = 1) +
+  labs(title = "A. Onset time shifts",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$onset_shift), 2), "hours"),
+       x = "Hours shifted (negative = earlier)", 
+       y = "Count") +
+  theme_minimal()
+
+p_offset <- ggplot(comprehensive_comparison, aes(x = offset_shift)) +
+  geom_histogram(bins = 40, fill = "skyblue", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$offset_shift), 
+             color = "blue", size = 1) +
+  labs(title = "B. Offset time shifts",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$offset_shift), 2), "hours"),
+       x = "Hours shifted (negative = earlier)", 
+       y = "Count") +
+  theme_minimal()
+
+p_peak <- ggplot(comprehensive_comparison, aes(x = peak_shift)) +
+  geom_histogram(bins = 40, fill = "orange", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$peak_shift), 
+             color = "darkorange", size = 1) +
+  labs(title = "C. Peak activity (median) shifts",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$peak_shift), 2), "hours"),
+       x = "Hours shifted (negative = earlier)", 
+       y = "Count") +
+  theme_minimal()
+
+p_duration <- ggplot(comprehensive_comparison, aes(x = duration_change)) +
+  geom_histogram(bins = 40, fill = "lightgreen", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  geom_vline(xintercept = mean(comprehensive_comparison$duration_change), 
+             color = "darkgreen", size = 1) +
+  labs(title = "D. Duration changes",
+       subtitle = paste("Mean:", round(mean(comprehensive_comparison$duration_change), 2), "hours"),
+       x = "Hours change (negative = shorter)", 
+       y = "Count") +
+  theme_minimal()
+
+(p_onset + p_offset) / (p_peak + p_duration)
+```

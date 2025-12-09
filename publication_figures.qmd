@@ -267,7 +267,7 @@ Figure 3
 ```{r}
 
 sscs_sp <- sscs %>% group_by(species) %>% summarize(duration=mean(duration),median=mean(median_value),
-                                                onset=mean(q10_value),offset=mean(q90_value),wingspan=mean(wingspan),n=n()) %>% filter(n > 15) %>% mutate(clade=species)
+                                                onset=mean(q10_value),offset=mean(q90_value),wingspan=mean(wingspan),n=n()) %>% filter(n > 15) %>% filter(species != "Danaus plexippus") %>% mutate(clade=species)
 
 assessTraitsOnTree(sscs_sp, trait_colname = "duration",tree=tree)
 assessTraitsOnTree(sscs_sp, trait_colname = "onset",tree=tree)

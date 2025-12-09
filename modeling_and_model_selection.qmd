@@ -209,11 +209,19 @@ myModelChecks(m_list)
 ```{r}
 
 library(brms)
-  
-loo_compare(m1,m2,m9,m13,m17) # m1 is best - no spline
-loo_compare(m3,m4,m10,m14,m18) # m3 is best - no spline
-loo_compare(m5,m6,m11,m15,m19) # m11 is best - spline
-loo_compare(m7,m8,m12,m16) # m12 is best - spline
+
+#loo_compare(m1,m2,m9,m13,m17) # m1 is best - no spline
+#loo_compare(m3,m4,m10,m14,m18) # m3 is best - no spline
+#loo_compare(m5,m6,m11,m15,m19) # m11 is best - spline
+#loo_compare(m7,m8,m12,m16) # m12 is best - spline
+#m1 - simple
+#m2 - temp * wingspan
+#m9 - temp spline
+#m17 - sampling effort
+loo_compare(m1,m2,m9,m13,m17) 
+loo_compare(m3,m4,m10,m14,m18) 
+loo_compare(m5,m6,m11,m15,m19) 
+loo_compare(m7,m8,m12,m16,m20) 
 
 m_dur <- m1
 m_on <- m3
@@ -350,4 +358,10 @@ vif(m)
 # VIFS: low without cell, high with
 m <- getPlotLM(sscs,model_type="lmer",response="median_value", formula="temp + wingspan + daylength + (1|cell) + (1|season) + (1|species)")
 vif(m)
+```
+
+```{r}
+
+sp <- unique(sscs$species)
+write.csv(sp, "final_species_list.csv")
 ```
